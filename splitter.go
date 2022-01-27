@@ -2,7 +2,7 @@ package lsv
 
 import (
 	"bufio"
-	"github.com/pkg/errors"
+	"errors"
 	"io"
 	"strings"
 	"unicode"
@@ -69,7 +69,7 @@ func splitter(str string) ([]string, error) {
 	}
 
 	if inRaw {
-		err = errors.Errorf("missing closing quotes")
+		err = errors.New("missing closing quotes")
 	}
 
 	if err != io.EOF {
@@ -88,6 +88,7 @@ func trimComment(line string, inRaw bool) string {
 			inRaw = false
 		}
 	}
+
 	return strings.TrimRightFunc(line, unicode.IsSpace)
 }
 
@@ -105,12 +106,4 @@ func isRaw(i int, str string) bool {
 	isEsc2 := i > 1 && str[i-2] == '\\'
 
 	return isChar && !isEsc1 && !(isEsc1 && isEsc2)
-}
-
-func isChar(char rune, i int, str string) bool {
-	match := str[i] == byte(char)
-	isEsc1 := i > 0 && str[i-1] == '\\'
-	isEsc2 := i > 1 && str[i-2] == '\\'
-
-	return match && !isEsc1 && !(isEsc1 && isEsc2)
 }

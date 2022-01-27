@@ -56,6 +56,7 @@ func (r *Reader) Read() (string, error) {
 }
 
 func (r *Reader) readValue() (string, error) {
+	// TODO: check for valid delimiters
 
 	var inRaw bool
 	var line, rawString string
@@ -79,7 +80,7 @@ func (r *Reader) readValue() (string, error) {
 			}
 		}
 
-		line, _ = r.trimComment(line, inRaw)
+		line = r.trimComment(line, inRaw)
 		if line != "" {
 			if inRaw {
 				i := strings.LastIndexFunc(line, func(r rune) bool {
@@ -137,7 +138,7 @@ func (r *Reader) ReadAll() ([]string, error) {
 		values = append(values, value)
 	}
 }
-func (r *Reader) trimComment(line string, inRaw bool) (string, bool) {
+func (r *Reader) trimComment(line string, inRaw bool) string {
 	for j := range line {
 		if r.isComment(j, line) && !inRaw {
 			line = line[:j]
@@ -147,7 +148,7 @@ func (r *Reader) trimComment(line string, inRaw bool) (string, bool) {
 		}
 	}
 
-	return line, inRaw
+	return line
 }
 
 func (r *Reader) isComment(i int, str string) bool {

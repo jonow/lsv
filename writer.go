@@ -7,6 +7,11 @@ import (
 	"unicode"
 )
 
+const (
+	defaultLeadingCommentSpace  = "\t"
+	defaultTrailingCommentSpace = " "
+)
+
 // Writer writes values using LSV encoding.
 type Writer struct {
 	// Comment is the comment character. Any characters following the comment
@@ -14,9 +19,13 @@ type Writer struct {
 	// whitespace.
 	Comment rune
 
-	// CommentSpace is the space written before the Comment character when
-	// writing a comment.
-	CommentSpace string
+	// LeadingCommentSpace is the space written before the Comment character
+	// when writing a comment.
+	LeadingCommentSpace string
+
+	// TrailingCommentSpace is the space written after the Comment character
+	// when writing a comment.
+	TrailingCommentSpace string
 
 	// Raw is the character that indicates the start and end of a raw literal
 	// and can only appear as the first or last non-whitespace character on a
@@ -36,11 +45,13 @@ type Writer struct {
 // NewWriter returns a new Writer that write to w.
 func NewWriter(w io.Writer) *Writer {
 	return &Writer{
-		Comment: defaultComment,
-		Raw:     defaultRaw,
-		Escape:  defaultEscape,
-		UseCRLF: false,
-		w:       bufio.NewWriter(w),
+		Comment:              defaultComment,
+		LeadingCommentSpace:  defaultLeadingCommentSpace,
+		TrailingCommentSpace: defaultTrailingCommentSpace,
+		Raw:                  defaultRaw,
+		Escape:               defaultEscape,
+		UseCRLF:              false,
+		w:                    bufio.NewWriter(w),
 	}
 }
 
@@ -58,55 +69,74 @@ func (w *Writer) Write(value string) error {
 func (w *Writer) WriteComment(value, comment string) error {
 	// TODO: check for valid delimiters
 
-	var n int
+	var bytesWritten, n int
 	var err error
 
 	// If the value does not need to be escaped, then write the value to the
 	// buffer
-	needsEscaping := w.valueNeedsEscaping(value)
-	if !needsEscaping {
-		n, err = strings.NewReplacer("\\#", "\\\\#", "#", "\\#").WriteString(w.w, value)
-		if err != nil {
-			return err
-		}
-	} else {
-		_, err = w.w.WriteRune('"')
-		if err != nil {
-			return err
-		}
+	if value != "" {
+		if !w.valueNeedsEscaping(value) {
+			n, err = strings.NewReplacer("\\#", "\\\\#", "#", "\\#").WriteString(w.w, value)
+			if err != nil {
+				return err
+			}
 
-		_, err = strings.NewReplacer("\\\"\n", "\\\\\"\n", "\"\n", "\\\"\n").WriteString(w.w, value)
-		if err != nil {
-			return err
-		}
+			bytesWritten += n
+		} else {
+			n, err = w.w.WriteRune('"')
+			if err != nil {
+				return err
+			}
+			bytesWritten += n
 
-		_, err = w.w.WriteRune('"')
-		if err != nil {
-			return err
+			n, err = strings.NewReplacer("\\\"\n", "\\\\\"\n", "\"\n", "\\\"\n").WriteString(w.w, value)
+			if err != nil {
+				return err
+			}
+			bytesWritten += n
+
+			n, err = w.w.WriteRune('"')
+			if err != nil {
+				return err
+			}
+			bytesWritten += n
 		}
 	}
 
 	if comment != "" {
-		if n > 0 {
-			_, err = w.w.WriteString(w.CommentSpace)
+		if bytesWritten > 0 {
+			n, err = w.w.WriteString(w.LeadingCommentSpace)
 			if err != nil {
 				return err
 			}
+			bytesWritten += n
 		}
-		_, err = w.w.WriteRune(w.Comment)
+		n, err = w.w.WriteRune(w.Comment)
 		if err != nil {
 			return err
 		}
-		_, err = w.w.WriteString(comment)
+		bytesWritten += n
+
+		n, err = w.w.WriteString(w.TrailingCommentSpace)
 		if err != nil {
 			return err
 		}
+		bytesWritten += n
+
+		n, err = w.w.WriteString(comment)
+		if err != nil {
+			return err
+		}
+		bytesWritten += n
 	}
 
-	if w.UseCRLF {
-		_, err = w.w.WriteString("\r\n")
-	} else {
-		err = w.w.WriteByte('\n')
+	// Do not add delimiter if no value was written
+	if bytesWritten > 0 {
+		if w.UseCRLF {
+			_, err = w.w.WriteString("\r\n")
+		} else {
+			err = w.w.WriteByte('\n')
+		}
 	}
 	return err
 }
@@ -128,6 +158,22 @@ func (w *Writer) Error() error {
 func (w *Writer) WriteAll(values []string) error {
 	for _, value := range values {
 		err := w.Write(value)
+		if err != nil {
+			return err
+		}
+	}
+	return w.w.Flush()
+}
+
+type ValueComment struct {
+	value, comment string
+}
+
+// WriteAllWithComments writes multiple LSV records and comments to w using
+// Write and then calls Flush, returning any error from the Flush.
+func (w *Writer) WriteAllWithComments(values []ValueComment) error {
+	for _, value := range values {
+		err := w.WriteComment(value.value, value.comment)
 		if err != nil {
 			return err
 		}

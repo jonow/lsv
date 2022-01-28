@@ -30,6 +30,8 @@ func TestReader_ReadAll(t *testing.T) {
 		"\"test12\"\ntest12",
 		"\"test13\\\\\"\ntest13",
 		"test14\n\ntest14",
+		"",
+		"test15",
 	}
 
 	input := `
@@ -59,7 +61,9 @@ test12"
 test13"
 "test14
 
-test14"`
+test14"
+""
+test15`
 
 	r := NewReader(strings.NewReader(input))
 	output, err := r.ReadAll()

@@ -39,6 +39,9 @@ func TestWriter_WriteAll(t *testing.T) {
 		"\"test11\\\"\ntest11",
 		"\"test12\"\ntest12",
 		"\"test13\\\\\"\ntest13",
+		"test14\n\ntest14",
+		"",
+		"test15",
 	}
 	buff := bytes.NewBufferString("")
 	w := NewWriter(buff)

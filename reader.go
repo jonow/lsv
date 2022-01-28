@@ -8,6 +8,8 @@ import (
 	"unicode"
 )
 
+// TODO: Add support for empty entries
+
 const (
 	defaultComment = '#'
 	defaultRaw     = '"'
@@ -59,7 +61,8 @@ func (r *Reader) readValue() (string, error) {
 	// TODO: check for valid delimiters
 
 	var inRaw bool
-	var line, rawString string
+	var line string
+	var rawString strings.Builder
 	var err error
 
 	for {
@@ -88,14 +91,23 @@ func (r *Reader) readValue() (string, error) {
 				})
 				if i > -1 {
 					if r.isRaw(i, line) {
-						line = rawString + line[:i]
+						_, err = rawString.WriteString(line[:i])
+						if err != nil {
+							return "", err
+						}
+
+						line = rawString.String()
+						rawString.Reset()
 						inRaw = false
 						break
 					} else if line[i] == '"' && (i > 0 && line[i-1] == '\\') {
 						line = line[:i-1] + line[i:]
 					}
 				}
-				rawString += line
+				_, err = rawString.WriteString(line)
+				if err != nil {
+					return "", err
+				}
 			} else {
 				line = strings.TrimRightFunc(line, unicode.IsSpace)
 				line = strings.ReplaceAll(line, "\\#", "#")

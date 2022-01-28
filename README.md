@@ -10,4 +10,6 @@ quote must be the first non-whitespace character on a line and the end quote
 must be the last non-whitespace or non comment character on the line. All
 whitespace and comments in escaped values are preserved.
 
+Empty lines are ignored. Lines with only "" are considered empty values.
+
 Comments and quotes can be escaped using \.

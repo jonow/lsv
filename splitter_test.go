@@ -25,6 +25,9 @@ func Test_splitter(t *testing.T) {
 		"\"test11\\\"\ntest11",
 		"\"test12\"\ntest12",
 		"\"test13\\\\\"\ntest13",
+		"test14\n\ntest14",
+		"",
+		"test15",
 	}
 
 	input := `
@@ -51,7 +54,12 @@ test11"
 ""test12\"
 test12"
 ""test13\\\"
-test13"`
+test13"
+"test14
+
+test14"
+""
+test15`
 
 	output, err := splitter(input)
 	if err != nil {
@@ -64,3 +72,36 @@ test13"`
 
 	t.Logf("%q", output)
 }
+
+// func Benchmark_splitter(b *testing.B) {
+// 	line := "this is a value   # This is a comment\n"
+// 	var str strings.Builder
+// 	for n := 0; n < b.N; n++ {
+// 		b.StopTimer()
+// 		str.WriteString(line)
+// 		buff := bytes.NewBufferString("")
+// 		buff.WriteString(line)
+// 		b.StartTimer()
+// 		data, _ := io.ReadAll(buff)
+// 		_, err := splitter(string(data))
+// 		if err != nil {
+// 			b.Errorf("splitter error: %+v", err)
+// 		}
+// 	}
+// }
+//
+// func Benchmark_ReadAll(b *testing.B) {
+// 	line := "this is a value   # This is a comment\n"
+// 	var str strings.Builder
+// 	for n := 0; n < b.N; n++ {
+// 		b.StopTimer()
+// 		str.WriteString(line)
+// 		strReader := strings.NewReader(str.String())
+// 		r := NewReader(strReader)
+// 		b.StartTimer()
+// 		_, err := r.ReadAll()
+// 		if err != nil {
+// 			b.Errorf("splitter error: %+v", err)
+// 		}
+// 	}
+// }

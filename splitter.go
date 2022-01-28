@@ -1,9 +1,6 @@
 package lsv
 
 import (
-	"bufio"
-	"errors"
-	"io"
 	"strings"
 	"unicode"
 )
@@ -22,61 +19,65 @@ Rules:
 */
 
 func splitter(str string) ([]string, error) {
-	var list []string
 
-	reader := bufio.NewReader(strings.NewReader(str))
 	var inRaw bool
-	var line, rawString string
 	var err error
+	var values []string
+	var rawString strings.Builder
 
-	for {
-		line, err = reader.ReadString('\n')
+	for _, line := range strings.SplitAfter(str, "\n") {
 
-		line = strings.TrimLeftFunc(line, unicode.IsSpace)
-		if line == "" {
-			continue
-		}
-		if line[0] == '"' {
-			inRaw = true
-			line = line[1:]
-		}
-
-		trimmedLine := trimComment(line, inRaw)
-		if trimmedLine != "" {
-			if inRaw {
-				if isRaw(len(trimmedLine)-1, trimmedLine) {
-					line = rawString + trimmedLine[:len(trimmedLine)-1]
-					list = append(list, line)
-					inRaw = false
-					rawString = ""
-				} else {
-					if trimmedLine[len(trimmedLine)-1] == '"' {
-						i := strings.LastIndex(line, "\\\"")
-						if i > -1 {
-							line = line[:i] + line[i+1:]
-						}
-					}
-					rawString += line
-				}
-			} else {
-				list = append(list, strings.NewReplacer("\\#", "#").Replace(trimmedLine))
+		if !inRaw {
+			line = strings.TrimLeftFunc(line, unicode.IsSpace)
+			if line == "" {
+				continue
+			}
+			if line[0] == '"' {
+				inRaw = true
+				line = line[1:]
 			}
 		}
 
-		if err != nil {
-			break
+		line = trimComment(line, inRaw)
+		if line != "" {
+			if inRaw {
+				i := strings.LastIndexFunc(line, func(r rune) bool {
+					return !unicode.IsSpace(r)
+				})
+				if i > -1 {
+					if isRaw(i, line) {
+						_, err = rawString.WriteString(line[:i])
+						if err != nil {
+							return nil, err
+						}
+
+						values = append(values, rawString.String())
+						inRaw = false
+						rawString.Reset()
+						continue
+					} else if line[i] == '"' && (i > 0 && line[i-1] == '\\') {
+						line = line[:i-1] + line[i:]
+					}
+				}
+				_, err = rawString.WriteString(line)
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				line = strings.TrimRightFunc(line, unicode.IsSpace)
+				line = strings.ReplaceAll(line, "\\#", "#")
+				if line != "" {
+					values = append(values, line)
+				}
+			}
 		}
 	}
 
 	if inRaw {
-		err = errors.New("missing closing quotes")
+		err = ErrNoClosingRaw
 	}
 
-	if err != io.EOF {
-		return nil, err
-	}
-
-	return list, nil
+	return values, err
 }
 
 func trimComment(line string, inRaw bool) string {
@@ -89,7 +90,7 @@ func trimComment(line string, inRaw bool) string {
 		}
 	}
 
-	return strings.TrimRightFunc(line, unicode.IsSpace)
+	return line
 }
 
 func isComment(i int, str string) bool {

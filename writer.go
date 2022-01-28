@@ -130,6 +130,19 @@ func (w *Writer) WriteComment(value, comment string) error {
 		bytesWritten += n
 	}
 
+	if value == "" && comment == "" {
+		n, err = w.w.WriteRune(w.Raw)
+		if err != nil {
+			return err
+		}
+		bytesWritten += n
+		n, err = w.w.WriteRune(w.Raw)
+		if err != nil {
+			return err
+		}
+		bytesWritten += n
+	}
+
 	// Do not add delimiter if no value was written
 	if bytesWritten > 0 {
 		if w.UseCRLF {

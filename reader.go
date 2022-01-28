@@ -69,14 +69,19 @@ func (r *Reader) readValue() (string, error) {
 		line, err = r.r.ReadString('\n')
 
 		if line == "" && err == io.EOF {
-			return "", err
+			break
 		}
 
 		if !inRaw {
+			// Trim leading whitespace if not in raw string literal
 			line = strings.TrimLeftFunc(line, unicode.IsSpace)
+
+			// Skip empty lines or lines with only whitespace
 			if line == "" {
 				continue
 			}
+
+			// Check if the value is a raw string literal
 			if line[0] == '"' {
 				inRaw = true
 				line = line[1:]
@@ -101,6 +106,7 @@ func (r *Reader) readValue() (string, error) {
 						inRaw = false
 						break
 					} else if line[i] == '"' && (i > 0 && line[i-1] == '\\') {
+						// Trim escape character
 						line = line[:i-1] + line[i:]
 					}
 				}
@@ -150,6 +156,8 @@ func (r *Reader) ReadAll() ([]string, error) {
 		values = append(values, value)
 	}
 }
+
+// trimComment removes any comment that is not in a raw string literal.
 func (r *Reader) trimComment(line string, inRaw bool) string {
 	for j := range line {
 		if r.isComment(j, line) && !inRaw {

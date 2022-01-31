@@ -72,36 +72,3 @@ test15`
 
 	t.Logf("%q", output)
 }
-
-// func Benchmark_splitter(b *testing.B) {
-// 	line := "this is a value   # This is a comment\n"
-// 	var str strings.Builder
-// 	for n := 0; n < b.N; n++ {
-// 		b.StopTimer()
-// 		str.WriteString(line)
-// 		buff := bytes.NewBufferString("")
-// 		buff.WriteString(line)
-// 		b.StartTimer()
-// 		data, _ := io.ReadAll(buff)
-// 		_, err := splitter(string(data))
-// 		if err != nil {
-// 			b.Errorf("splitter error: %+v", err)
-// 		}
-// 	}
-// }
-//
-// func Benchmark_ReadAll(b *testing.B) {
-// 	line := "this is a value   # This is a comment\n"
-// 	var str strings.Builder
-// 	for n := 0; n < b.N; n++ {
-// 		b.StopTimer()
-// 		str.WriteString(line)
-// 		strReader := strings.NewReader(str.String())
-// 		r := NewReader(strReader)
-// 		b.StartTimer()
-// 		_, err := r.ReadAll()
-// 		if err != nil {
-// 			b.Errorf("splitter error: %+v", err)
-// 		}
-// 	}
-// }

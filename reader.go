@@ -95,7 +95,14 @@ func (r *Reader) readValue() (string, error) {
 					return !unicode.IsSpace(r)
 				})
 				if i > -1 {
-					if r.isRaw(i, line) {
+					var prev1, prev2 rune
+					if i > 1 {
+						prev1 = rune(line[i-1])
+					}
+					if i > 2 {
+						prev2 = rune(line[i-2])
+					}
+					if r.isRaw(rune(line[i]), prev1, prev2) {
 						_, err = rawString.WriteString(line[:i])
 						if err != nil {
 							return "", err
@@ -145,7 +152,6 @@ func (r *Reader) ReadAll() ([]string, error) {
 
 	for {
 		value, err := r.readValue()
-		// fmt.Printf("value: %q\n", value)
 		if err == io.EOF {
 			return values, nil
 		}
@@ -159,37 +165,41 @@ func (r *Reader) ReadAll() ([]string, error) {
 
 // trimComment removes any comment that is not in a raw string literal.
 func (r *Reader) trimComment(line string, inRaw bool) string {
-	for j := range line {
-		if r.isComment(j, line) && !inRaw {
+	var prev1, prev2 rune
+	for j, char := range line {
+		if r.isComment(char, prev1, prev2) && !inRaw {
 			line = line[:j]
 			break
-		} else if r.isRaw(j, line) && inRaw {
+		} else if r.isRaw(char, prev1, prev2) && inRaw {
 			inRaw = false
 		}
+
+		prev2 = prev1
+		prev1 = char
 	}
 
 	return line
 }
 
-func (r *Reader) isComment(i int, str string) bool {
-	return isChar(r.Comment, r.Escape, i, []rune(str))
+func (r *Reader) isComment(c, prev1, prev2 rune) bool {
+	return isChar(r.Comment, r.Escape, c, prev1, prev2)
 }
 
-func (r *Reader) isRaw(i int, str string) bool {
-	return isChar(r.Raw, r.Escape, i, []rune(str))
+func (r *Reader) isRaw(c, prev1, prev2 rune) bool {
+	return isChar(r.Raw, r.Escape, c, prev1, prev2)
 }
 
 // isChar determines if the rune at the index matches the char and that it is
 // not escaped.
-func isChar(char, escape rune, i int, str []rune) bool {
+func isChar(char, escape, c, prev1, prev2 rune) bool {
 	// Check if the character matches
-	match := str[i] == char
+	match := c == char
 
 	// Check if the character is escaped
-	isEsc1 := i > 0 && str[i-1] == escape
+	isEsc1 := prev1 == escape
 
 	// Check if the escape character is escaped
-	isEsc2 := i > 1 && str[i-2] == escape
+	isEsc2 := prev2 == escape
 
 	return match && !isEsc1 && !(isEsc1 && isEsc2)
 }

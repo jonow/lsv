@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // TODO: Add support for empty entries
@@ -17,6 +18,13 @@ const (
 )
 
 var ErrNoClosingRaw = errors.New("raw literal not closed")
+
+var errInvalidDelim = errors.New("invalid comment, raw, or escape delimiter")
+
+// validDelim determines if the rune cast be used by the reader.
+func validDelim(r rune) bool {
+	return r != 0 && !unicode.IsSpace(r) && utf8.ValidRune(r) && r != utf8.RuneError
+}
 
 // Reader reads values from a LSV-encoded file.
 type Reader struct {
@@ -40,25 +48,37 @@ type Reader struct {
 	// An Escape character can be escaped itself.
 	Escape rune
 
+	// If TrimLeadingSpace is true, leading white space in a field is ignored.
+	// This is true by default.
+	TrimLeadingSpace bool
+
 	r *bufio.Reader
 }
 
 // NewReader returns a new Reader that reads from r.
 func NewReader(r io.Reader) *Reader {
 	return &Reader{
-		Comment: defaultComment,
-		Raw:     defaultRaw,
-		Escape:  defaultEscape,
-		r:       bufio.NewReader(r),
+		Comment:          defaultComment,
+		Raw:              defaultRaw,
+		Escape:           defaultEscape,
+		TrimLeadingSpace: true,
+		r:                bufio.NewReader(r),
 	}
 }
 
+// Read reads one value from r. If a raw string literal is started but not
+// closed, Read returns nil, ErrNoClosingRaw. If there is no data left to be
+// read, Read returns nil, io.EOF.
 func (r *Reader) Read() (string, error) {
 	return r.readValue()
 }
 
+// readValue is the internal helper function for Read.
 func (r *Reader) readValue() (string, error) {
-	// TODO: check for valid delimiters
+	if r.Comment == r.Raw || r.Comment == r.Escape || r.Raw == r.Escape ||
+		!validDelim(r.Comment) || !validDelim(r.Raw) || !validDelim(r.Escape) {
+		return "", errInvalidDelim
+	}
 
 	var inRaw bool
 	var line string
@@ -68,13 +88,16 @@ func (r *Reader) readValue() (string, error) {
 	for {
 		line, err = r.r.ReadString('\n')
 
+		// No more values left
 		if line == "" && err == io.EOF {
 			break
 		}
 
 		if !inRaw {
 			// Trim leading whitespace if not in raw string literal
-			line = strings.TrimLeftFunc(line, unicode.IsSpace)
+			if r.TrimLeadingSpace {
+				line = strings.TrimLeftFunc(line, unicode.IsSpace)
+			}
 
 			// Skip empty lines or lines with only whitespace
 			if line == "" {
@@ -82,48 +105,54 @@ func (r *Reader) readValue() (string, error) {
 			}
 
 			// Check if the value is a raw string literal
-			if line[0] == '"' {
+			c, _ := utf8.DecodeRuneInString(line)
+			if c == r.Raw {
 				inRaw = true
 				line = line[1:]
 			}
 		}
 
+		// Trim any comment not in raw string
 		line = r.trimComment(line, inRaw)
 		if line != "" {
 			if inRaw {
-				i := strings.LastIndexFunc(line, func(r rune) bool {
-					return !unicode.IsSpace(r)
-				})
-				if i > -1 {
-					var prev1, prev2 rune
-					if i > 1 {
-						prev1 = rune(line[i-1])
-					}
-					if i > 2 {
-						prev2 = rune(line[i-2])
-					}
-					if r.isRaw(rune(line[i]), prev1, prev2) {
-						_, err = rawString.WriteString(line[:i])
-						if err != nil {
-							return "", err
-						}
+				// If in raw string literal, add to rawString instead of
+				// returning the value so the rest of the value can be read
 
-						line = rawString.String()
-						rawString.Reset()
-						inRaw = false
+				var last, prev1, prev2 rune
+				var j, k int
+				for i := len(line); i > 0; {
+					char, size := utf8.DecodeLastRuneInString(line[0:i])
+					i -= size
+					if !unicode.IsSpace(char) && last == 0 {
+						last = char
+						j = i
+						continue
+					}
+					if last != 0 && prev1 == 0 {
+						prev1 = char
+						k = i
+						continue
+					}
+					if last != 0 && prev1 != 0 && prev2 == 0 {
+						prev2 = char
 						break
-					} else if line[i] == '"' && (i > 0 && line[i-1] == '\\') {
-						// Trim escape character
-						line = line[:i-1] + line[i:]
 					}
 				}
-				_, err = rawString.WriteString(line)
-				if err != nil {
-					return "", err
+				if r.isRaw(last, prev1, prev2) {
+					rawString.WriteString(line[:j])
+					line = rawString.String()
+					rawString.Reset()
+					inRaw = false
+					break
+				} else if last == r.Raw && prev1 == r.Escape {
+					// Trim escape character
+					line = line[:k] + line[j:]
 				}
+				rawString.WriteString(line)
 			} else {
 				line = strings.TrimRightFunc(line, unicode.IsSpace)
-				line = strings.ReplaceAll(line, "\\#", "#")
+				line = strings.ReplaceAll(line, string(r.Escape)+string(r.Comment), string(r.Comment))
 				if line == "" {
 					continue
 				}
@@ -140,13 +169,16 @@ func (r *Reader) readValue() (string, error) {
 		err = ErrNoClosingRaw
 	}
 
-	if line != "" && err == io.EOF {
-		err = nil
+	if err == nil || (line != "" && err == io.EOF) {
+		return line, nil
 	}
 
-	return line, err
+	return "", err
 }
 
+// ReadAll reads all the remaining values from r. A successful call returns
+// err == nil, not err == io.EOF. Because ReadAll is defined to read until EOF,
+// it does not treat end of file as an error to be reported.
 func (r *Reader) ReadAll() ([]string, error) {
 	var values []string
 

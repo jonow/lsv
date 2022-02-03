@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 type readTest struct {
@@ -14,10 +15,10 @@ type readTest struct {
 	Error  error
 
 	// These fields are copied into the Reader
-	Comment          rune
-	Raw              rune
-	Escape           rune
-	TrimLeadingSpace bool // Set to true to invert default
+	Comment rune
+	Raw     rune
+	Escape  rune
+	NoTrim  bool // Set to true to invert default
 }
 
 var readTests = []readTest{{
@@ -33,7 +34,83 @@ var readTests = []readTest{{
 	Input:  "a\nb\rc\nd\r\n",
 	Output: []string{"a", "b\rc", "d"},
 }, {
-	Name: "RFC4180test",
+	Name:   "NoEOLTest",
+	Input:  "a\nb\nc",
+	Output: []string{"a", "b", "c"},
+}, {
+	Name:   "BlankLine",
+	Input:  "a\nb\nc\n\nd\ne\nf\n\n",
+	Output: []string{"a", "b", "c", "d", "e", "f"},
+}, {
+	Name:   "TrimSpace",
+	Input:  " a\n  b\n   c\n",
+	Output: []string{"a", "b", "c"},
+}, {
+	Name:   "LeadingSpace",
+	Input:  " a\n  b\n   c\n",
+	Output: []string{" a", "  b", "   c"},
+	NoTrim: true,
+}, {
+	Name:   "BinaryBlobField",
+	Input:  "x09\x41\xb4\x1c\naktau",
+	Output: []string{"x09A\xb4\x1c", "aktau"},
+}, {
+	Name:   "QuotedFieldMultipleLF",
+	Input:  "\"\n\n\n\n\"",
+	Output: []string{"\n\n\n\n"},
+}, {
+	Name:  "MultipleCRLF",
+	Input: "\r\n\r\n\r\n\r\n",
+}, {
+	// The implementation may read each line in several chunks if it does not
+	// fit entirely in the read buffer, so we should test the code to handle
+	// that condition.
+	Name: "HugeLines",
+	Input: strings.Repeat("#ignore\n", 10000) + "" +
+		strings.Repeat("@", 5000) + "\n" + strings.Repeat("*", 5000),
+	Output: []string{strings.Repeat("@", 5000), strings.Repeat("*", 5000)},
+}, {
+	Name:   "CRLFInQuotedField",
+	Input:  "A\n\"Hello\r\nHi\"\nB\r\n",
+	Output: []string{"A", "Hello\r\nHi", "B"},
+}, {
+	Name:  "QuoteWithTrailingCRLF",
+	Input: "\"foo\"\n\"bar\r\n",
+	Error: ErrNoClosingRaw,
+}, {
+	Name:   "LazyQuoteWithTrailingCRLF",
+	Input:  "\"foo\"bar\"\r\n",
+	Output: []string{`foo"bar`},
+}, {
+	Name:   "DoubleQuoteWithTrailingCRLF",
+	Input:  "\"foo\"\"bar\"\r\n",
+	Output: []string{`foo""bar`},
+}, {
+	Name:   "TrailingCR",
+	Input:  "field1\nfield2\r",
+	Output: []string{"field1", "field2"},
+}, {
+	Name:   "QuotedTrailingCR",
+	Input:  "\"field\"\r",
+	Output: []string{"field"},
+}, {
+	Name:   "QuotedTrailingCRCR",
+	Input:  "\"field\"\r\r",
+	Output: []string{"field"},
+}, {
+	Name:   "FieldCR",
+	Input:  "field\rfield\r",
+	Output: []string{"field\rfield"},
+}, {
+	Name:   "FieldCRCR",
+	Input:  "field\r\rfield\r\r",
+	Output: []string{"field\r\rfield"},
+}, {
+	Name:   "EvenQuotes",
+	Input:  `""""""""`,
+	Output: []string{`""""""`},
+}, {
+	Name: "RawTest",
 	Input: `field1
 "aaa"
 "bb
@@ -49,9 +126,28 @@ xxx
 	Output: []string{"field1", "aaa", "bb\nb", "ccc", "a,a", `b"bb`, "ccc",
 		"zzz", "yyy", "xxx"},
 }, {
-	Name:   "NoEOLTest",
-	Input:  "a\nb\nc",
-	Output: []string{"a", "b", "c"},
+	Name:   "EmptyValue",
+	Input:  `""`,
+	Output: []string{""},
+}, {
+	Name:   "EmptyValueNewLine",
+	Input:  "\"\"\n",
+	Output: []string{""},
+}, {
+	Name: "EmptyValues",
+	Input: `x
+
+y
+
+z
+
+x
+""
+y
+  ""  
+z
+""`,
+	Output: []string{"x", "y", "z", "x", "", "y", "", "z", ""},
 }, {
 	Name: "MultiLine",
 	Input: `"two
@@ -61,32 +157,6 @@ line"
 line
 field"`,
 	Output: []string{"two\nline", "one line", "three\nline\nfield"},
-}, {
-	Name:   "BlankLine",
-	Input:  "a\nb\nc\n\nd\ne\nf\n\n",
-	Output: []string{"a", "b", "c", "d", "e", "f"},
-}, {
-	Name:   "TrimSpace",
-	Input:  " a\n  b\n   c\n",
-	Output: []string{"a", "b", "c"},
-}, {
-	Name:             "LeadingSpace",
-	Input:            " a\n  b\n   c\n",
-	Output:           []string{" a", "  b", "   c"},
-	TrimLeadingSpace: true,
-}, {
-	Name:   "FullLineComment",
-	Input:  "#1,2,3\na\nb\nc\n#comment",
-	Output: []string{"a", "b", "c"},
-}, {
-	Name:   "InlineComment",
-	Input:  "a #1\nb #2\nc #3\n",
-	Output: []string{"a", "b", "c"},
-}, {
-	Name:    "NoComment",
-	Input:   "#123\na\nb\nc",
-	Output:  []string{"#123", "a", "b", "c"},
-	Comment: '0',
 }, {
 	Name:   "Quotes",
 	Input:  "a \"word\"\n\"1\"2\"\na\"\n\"b\"",
@@ -126,79 +196,122 @@ e`,
 b`,
 	Output: []string{"a", "\n\"\n", "b"},
 }, {
-	Name: "EmptyValueTest",
-	Input: `x
-y
-z
-w
-x
-y
-z
-
-x
-y
-
-
-x
-
-
-
-
-
-
-
-"x"
-"y"
-"z"
-"w"
-"x"
-"y"
-"z"
-""
-"x"
-"y"
-""
-""
-"x"
-""
-""
-""
-""
-""
-""
-""
-`,
-	Output: []string{"x", "y", "z", "w", "x", "y", "z", "x", "y", "x", "x", "y",
-		"z", "w", "x", "y", "z", "", "x", "y", "", "", "x", "", "", "", "", "",
-		"", ""},
+	Name:   "SingeLineComment",
+	Input:  "# Comment",
+	Output: nil,
 }, {
-	Name:   "CRLFInQuotedField",
-	Input:  "A\n\"Hello\r\nHi\"\nB\r\n",
-	Output: []string{"A", "Hello\r\nHi", "B"},
+	Name:   "EscapedSingeLineComment",
+	Input:  "\\# Comment",
+	Output: []string{"# Comment"},
 }, {
-	Name:   "BinaryBlobField",
-	Input:  "x09\x41\xb4\x1c\naktau",
+	Name:   "InlineComment",
+	Input:  "a # Comment",
+	Output: []string{"a"},
+}, {
+	Name:   "EscapedInlineComment",
+	Input:  "a \\# Comment  ",
+	Output: []string{"a # Comment"},
+}, {
+	Name:   "NonEscapedInlineComment",
+	Input:  "a \\\\# Comment  ",
+	Output: []string{"a \\# Comment"},
+}, {
+	Name:   "NonEscapedInlineComment2",
+	Input:  "a \\\\\\# Comment  ",
+	Output: []string{"a \\\\# Comment"},
+}, {
+	Name:   "SimpleWithComments",
+	Input:  "a # Comment 1\nb\t# Comment 2\nc\f# Comment 3\n",
+	Output: []string{"a", "b", "c"},
+}, {
+	Name:   "SimpleWithEscapedComments",
+	Input:  "a # Comment 1\nb\t\\# Comment 2\n\"c\f# Comment 3\"\n",
+	Output: []string{"a", "b\t# Comment 2", "c\f# Comment 3"},
+}, {
+	Name:   "NoEOLTestComment",
+	Input:  "a\nb\nc # Comment",
+	Output: []string{"a", "b", "c"},
+}, {
+	Name:   "BlankLineWithComments",
+	Input:  "a\nb\nc\n# Comment\nd\ne\nf\n#Comment\n",
+	Output: []string{"a", "b", "c", "d", "e", "f"},
+}, {
+	Name:   "TrimSpaceWithComment",
+	Input:  " a # Comment\n  b # Comment\n   c # Comment\n",
+	Output: []string{"a", "b", "c"},
+}, {
+	Name:   "LeadingSpaceWithComment",
+	Input:  " a# Comment\n  b# Comment\n   c# Comment\n",
+	Output: []string{" a", "  b", "   c"},
+	NoTrim: true,
+}, {
+	Name:   "LeadingSpaceWithEscapedComment",
+	Input:  " a# Comment\n  b\\# Comment\n   c# Comment\n",
+	Output: []string{" a", "  b# Comment", "   c"},
+	NoTrim: true,
+}, {
+	Name:   "BinaryBlobFieldWithComment",
+	Input:  "x09\x41\xb4\x1c # Comment\naktau #comment",
 	Output: []string{"x09A\xb4\x1c", "aktau"},
 }, {
-	Name:   "TrailingCR",
-	Input:  "field1\nfield2\r",
-	Output: []string{"field1", "field2"},
+	Name:   "QuotedFieldMultipleLFWithComment",
+	Input:  "\"\n\n\n\n\" # Comment",
+	Output: []string{"\n\n\n\n"},
 }, {
-	Name:   "QuotedTrailingCR",
-	Input:  "\"field\"\r",
-	Output: []string{"field"},
+	Name:   "MultipleCRLF",
+	Input:  "\r\n\r\n\r\n\r\n # Comment",
+	Output: nil,
 }, {
-	Name:   "QuotedTrailingCRCR",
-	Input:  "\"field\"\r\r",
-	Output: []string{"field"},
+	// The implementation may read each line in several chunks if it does not
+	// fit entirely in the read buffer, so we should test the code to handle
+	// that condition.
+	Name: "HugeLinesWithComments",
+	Input: strings.Repeat("# Comment\n", 10000) + "\n" +
+		strings.Repeat("@", 5000) + " # Comment \n" + strings.Repeat("*", 5000) + " \\# Not a comment",
+	Output: []string{strings.Repeat("@", 5000), strings.Repeat("*", 5000) + " # Not a comment"},
 }, {
-	Name:   "FieldCR",
-	Input:  "field\rfield\r",
-	Output: []string{"field\rfield"},
+	Name:   "CRLFWithComments",
+	Input:  "a# Comment 1\nb # Comment 2\r\nc# Comment 3\nd\r\n",
+	Output: []string{"a", "b", "c", "d"},
 }, {
-	Name:   "FieldCRCR",
-	Input:  "field\r\rfield\r\r",
-	Output: []string{"field\r\rfield"},
+	Name: "RawTestWithComments",
+	Input: `field1
+"aaa" # Comment 1
+"bb \# Not a comment
+b" # Comment 2
+"ccc"
+"a,a"
+"b"bb" # Comment 3
+"ccc"
+zzz
+yyy \# Not a Comment
+xxx
+`,
+	Output: []string{"field1", "aaa", "bb \\# Not a comment\nb", "ccc", "a,a",
+		`b"bb`, "ccc", "zzz", "yyy # Not a Comment", "xxx"},
+}, {
+	Name:   "EmptyValueWithComment",
+	Input:  `"" # Comment`,
+	Output: []string{""},
+}, {
+	Name:   "EmptyValueNewLineWithComment",
+	Input:  "\"\"# Comment\n",
+	Output: []string{""},
+}, {
+	Name: "EmptyValuesWithComments",
+	Input: `x
+# Comment
+y
+
+z # Comment
+
+x
+""
+y
+  ""  # Comment
+z
+""`,
+	Output: []string{"x", "y", "z", "x", "", "y", "", "z", ""},
 }, {
 	Name:    "NonASCIIComment",
 	Input:   "a\nb,c\n \td,e\n€ comment\n",
@@ -226,80 +339,71 @@ x
 	Output:  []string{"a θA", "λ λθB", "θa"},
 	Comment: 'θ',
 	Escape:  'λ',
-}, /*{
-	Name:   "QuotedFieldMultipleLF",
-	Input:  "\"\n\n\n\n\"",
-	Output: [][]string{{"\n\n\n\n"}},
 }, {
-	Name:  "MultipleCRLF",
-	Input: "\r\n\r\n\r\n\r\n",
+	Name:    "BadComment_IsSpace",
+	Comment: ' ',
+	Error:   errInvalidDelim,
 }, {
-	// The implementation may read each line in several chunks if it doesn't fit entirely
-	// in the read buffer, so we should test the code to handle that condition.
-	Name:    "HugeLines",
-	Input:   strings.Repeat("#ignore\n", 10000) + "" + strings.Repeat("@", 5000) + "," + strings.Repeat("*", 5000),
-	Output:  [][]string{{strings.Repeat("@", 5000), strings.Repeat("*", 5000)}},
-	Comment: '#',
+	Name:    "BadComment_InvalidRune",
+	Comment: 0xD800,
+	Error:   errInvalidDelim,
 }, {
-	Name:   "QuoteWithTrailingCRLF",
-	Input:  "\"foo∑\"bar\"\r\n",
-	Errors: []error{&ParseError{Err: ErrQuote}},
-}, {
-	Name:       "LazyQuoteWithTrailingCRLF",
-	Input:      "\"foo\"bar\"\r\n",
-	Output:     [][]string{{`foo"bar`}},
-	LazyQuotes: true,
-}, {
-	Name:   "DoubleQuoteWithTrailingCRLF",
-	Input:  "\"foo\"\"bar\"\r\n",
-	Output: [][]string{{`foo"bar`}},
-}, {
-	Name:   "EvenQuotes",
-	Input:  `""""""""`,
-	Output: [][]string{{`"""`}},
-}, {
-	Name:   "OddQuotes",
-	Input:  `"""""""∑`,
-	Errors: []error{&ParseError{Err: ErrQuote}},
-}, {
-	Name:       "LazyOddQuotes",
-	Input:      `"""""""`,
-	Output:     [][]string{{`"""`}},
-	LazyQuotes: true,
-}, {
-	Name:   "BadComma1",
-	Comma:  '\n',
-	Errors: []error{errInvalidDelim},
-}, {
-	Name:   "BadComma2",
-	Comma:  '\r',
-	Errors: []error{errInvalidDelim},
-}, {
-	Name:   "BadComma3",
-	Comma:  '"',
-	Errors: []error{errInvalidDelim},
-}, {
-	Name:   "BadComma4",
-	Comma:  utf8.RuneError,
-	Errors: []error{errInvalidDelim},
-}, {
-	Name:    "BadComment1",
-	Comment: '\n',
-	Errors:  []error{errInvalidDelim},
-}, {
-	Name:    "BadComment2",
-	Comment: '\r',
-	Errors:  []error{errInvalidDelim},
-}, {
-	Name:    "BadComment3",
+	Name:    "BadComment_utf8RuneError",
 	Comment: utf8.RuneError,
-	Errors:  []error{errInvalidDelim},
+	Error:   errInvalidDelim,
 }, {
-	Name:    "BadCommaComment",
-	Comma:   'X',
-	Comment: 'X',
-	Errors:  []error{errInvalidDelim},
-},*/
+	Name:    "BadComment_SameAsRaw",
+	Comment: '"',
+	Error:   errInvalidDelim,
+}, {
+	Name:    "BadComment_SameAsEscape",
+	Comment: '\\',
+	Error:   errInvalidDelim,
+}, {
+	Name:  "BadRaw_IsSpace",
+	Raw:   '\r',
+	Error: errInvalidDelim,
+}, {
+	Name:  "BadRaw_InvalidRune",
+	Raw:   0xDFFF,
+	Error: errInvalidDelim,
+}, {
+	Name:  "BadRaw_utf8RuneError",
+	Raw:   utf8.RuneError,
+	Error: errInvalidDelim,
+}, {
+	Name:    "BadRaw_SameAsComment",
+	Comment: '#',
+	Raw:     '#',
+	Error:   errInvalidDelim,
+}, {
+	Name:   "BadRaw_SameAsEscape",
+	Raw:    '\\',
+	Escape: '\\',
+	Error:  errInvalidDelim,
+}, {
+	Name:   "BadEscape_IsSpace",
+	Escape: '\n',
+	Error:  errInvalidDelim,
+}, {
+	Name:   "BadEscape_InvalidRune",
+	Escape: -1,
+	Error:  errInvalidDelim,
+}, {
+	Name:   "BadEscape_utf8RuneError",
+	Escape: utf8.RuneError,
+	Error:  errInvalidDelim,
+}, {
+	Name:    "BadEscape_SameAsComment",
+	Comment: '#',
+	Escape:  '#',
+	Error:   errInvalidDelim,
+}, {
+	Name:   "BadEscape_SameAsRaw",
+	Raw:    '"',
+	Escape: '"',
+	Error:  errInvalidDelim,
+},
 }
 
 // Tests that NewReader returns a pointer to a new Reader with the expected
@@ -333,12 +437,12 @@ func TestReader_Read(t *testing.T) {
 			r.Comment = tt.Comment
 		}
 		if tt.Raw != 0 {
-			r.Comment = tt.Raw
+			r.Raw = tt.Raw
 		}
 		if tt.Escape != 0 {
 			r.Escape = tt.Escape
 		}
-		if tt.TrimLeadingSpace {
+		if tt.NoTrim {
 			r.TrimLeadingSpace = false
 		}
 		return r
@@ -350,17 +454,21 @@ func TestReader_Read(t *testing.T) {
 			out, err := r.ReadAll()
 			if tt.Error != nil {
 				if !reflect.DeepEqual(err, tt.Error) {
-					t.Fatalf("ReadAll() error mismatch:\ngot  %v (%#v)\nwant %v (%#v)", err, err, tt.Error, tt.Error)
+					t.Fatalf("ReadAll() error mismatch:"+
+						"\nexpected: %v (%#v)\nreceived: %v (%#v)",
+						tt.Error, tt.Error, err, err)
 				}
 				if out != nil {
-					t.Fatalf("ReadAll() output:\ngot  %q\nwant nil", out)
+					t.Fatalf("ReadAll() unexpected output:"+
+						"\nexpected: nil\nreceived: %q", out)
 				}
 			} else {
 				if err != nil {
-					t.Fatalf("unexpected Readall() error: %v", err)
+					t.Fatalf("Unexpected Readall() error: %+v", err)
 				}
 				if !reflect.DeepEqual(out, tt.Output) {
-					t.Fatalf("ReadAll() output:\ngot  %q\nwant %q", out, tt.Output)
+					t.Fatalf("ReadAll() unexpected output:"+
+						"\nexpected: %q\nreceived: %q", tt.Output, out)
 				}
 			}
 		})

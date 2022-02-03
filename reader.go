@@ -89,8 +89,12 @@ func (r *Reader) readValue() (string, error) {
 		line, err = r.r.ReadString('\n')
 
 		// No more values left
-		if line == "" && err == io.EOF {
-			break
+		if err == io.EOF {
+			if line == "" {
+				break
+			} else {
+				err = nil
+			}
 		}
 
 		if !inRaw {
@@ -169,7 +173,7 @@ func (r *Reader) readValue() (string, error) {
 		err = ErrNoClosingRaw
 	}
 
-	if err == nil || (line != "" && err == io.EOF) {
+	if err == nil {
 		return line, nil
 	}
 

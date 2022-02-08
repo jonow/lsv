@@ -73,6 +73,20 @@ func (r *Reader) Read() (string, error) {
 	return r.readValue()
 }
 
+// readLine reads the next line (with the trailing end-line). If some bytes were
+// read, then the error is never io.EOF. The result is only valid until the next
+// call to readLine.
+func (r *Reader) readLine() (string, error) {
+	line, err := r.r.ReadString('\n')
+
+	// If bytes are read, do not return EOF
+	if len(line) > 0 && err == io.EOF {
+		err = nil
+	}
+
+	return line, err
+}
+
 // readValue is the internal helper function for Read.
 func (r *Reader) readValue() (string, error) {
 	if r.Comment == r.Raw || r.Comment == r.Escape || r.Raw == r.Escape ||
@@ -86,15 +100,9 @@ func (r *Reader) readValue() (string, error) {
 	var err error
 
 	for {
-		line, err = r.r.ReadString('\n')
-
-		// No more values left
-		if err == io.EOF {
-			if line == "" {
-				break
-			} else {
-				err = nil
-			}
+		line, err = r.readLine()
+		if err != nil {
+			break
 		}
 
 		if !inRaw {
@@ -109,10 +117,9 @@ func (r *Reader) readValue() (string, error) {
 			}
 
 			// Check if the value is a raw string literal
-			c, _ := utf8.DecodeRuneInString(line)
-			if c == r.Raw {
+			if c, size := utf8.DecodeRuneInString(line); c == r.Raw {
 				inRaw = true
-				line = line[1:]
+				line = line[size:]
 			}
 		}
 
@@ -131,18 +138,15 @@ func (r *Reader) readValue() (string, error) {
 					if !unicode.IsSpace(char) && last == 0 {
 						last = char
 						j = i
-						continue
-					}
-					if last != 0 && prev1 == 0 {
+					} else if last != 0 && prev1 == 0 {
 						prev1 = char
 						k = i
-						continue
-					}
-					if last != 0 && prev1 != 0 && prev2 == 0 {
+					} else if last != 0 && prev1 != 0 && prev2 == 0 {
 						prev2 = char
 						break
 					}
 				}
+
 				if r.isRaw(last, prev1, prev2) {
 					rawString.WriteString(line[:j])
 					line = rawString.String()

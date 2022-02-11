@@ -9,17 +9,18 @@ import (
 	"unicode/utf8"
 )
 
-// TODO: Add support for empty entries
-
+// Default runes.
 const (
 	defaultComment = '#'
 	defaultRaw     = '"'
 	defaultEscape  = '\\'
 )
 
-var ErrNoClosingRaw = errors.New("raw literal not closed")
-
-var errInvalidDelim = errors.New("invalid comment, raw, or escape delimiter")
+// Error messages.
+var (
+	ErrNoClosingRaw = errors.New("raw literal not closed")
+	errInvalidDelim = errors.New("invalid comment, raw, or escape delimiter")
+)
 
 // validDelim determines if the rune cast be used by the reader.
 func validDelim(r rune) bool {
@@ -221,10 +222,12 @@ func (r *Reader) trimComment(line string, inRaw bool) string {
 	return line
 }
 
+// isComment determines if the rune is an unescaped comment character.
 func (r *Reader) isComment(c, prev1, prev2 rune) bool {
 	return isChar(r.Comment, r.Escape, c, prev1, prev2)
 }
 
+// isRaw determines if the rune is an unescaped raw character.
 func (r *Reader) isRaw(c, prev1, prev2 rune) bool {
 	return isChar(r.Raw, r.Escape, c, prev1, prev2)
 }

@@ -473,12 +473,3 @@ func TestReader_ReadAll(t *testing.T) {
 		})
 	}
 }
-
-func TestReader_isComment(t *testing.T) {
-}
-
-func TestReader_isRaw(t *testing.T) {
-}
-
-func Test_isChar(t *testing.T) {
-}

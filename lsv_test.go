@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func Benchmark_splitter(b *testing.B) {
+func Benchmark_Split(b *testing.B) {
 	line := "this is a value   # This is a comment\n"
 	var str strings.Builder
 	for n := 0; n < b.N; n++ {
@@ -18,7 +18,7 @@ func Benchmark_splitter(b *testing.B) {
 		buff.WriteString(line)
 		b.StartTimer()
 		data, _ := io.ReadAll(buff)
-		_, err := splitter(string(data))
+		_, err := Split(string(data))
 		if err != nil {
 			b.Errorf("splitter error: %+v", err)
 		}

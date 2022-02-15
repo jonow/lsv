@@ -5,70 +5,54 @@ import (
 	"testing"
 )
 
-func Test_splitter(t *testing.T) {
-	expected := []string{
-		"test1",
-		"test2",
-		"test3 #not a comment",
-		"test4 \\#not a comment",
-		"#not a comment",
-		"\\#not a comment",
-		"\\\\#not a comment",
-		"Multi\nline",
-		"   test5   # this it not a comment  ",
-		"   test6    this it not a comment  ",
-		"   test7   \"\n# this it not a comment  ",
-		"\"",
-		"test8\"test8",
-		"test9\"",
-		"\"test10\"",
-		"\"test11\\\"\ntest11",
-		"\"test12\"\ntest12",
-		"\"test13\\\\\"\ntest13",
-		"test14\n\ntest14",
-		"",
-		"test15",
+// Tests that SplitParams returns the expected error or value for each test.
+func TestSplitParams(t *testing.T) {
+	newParameters := func(tt readTest) Parameters {
+		p := Parameters{
+			Comment:          defaultComment,
+			Raw:              defaultRaw,
+			Escape:           defaultEscape,
+			TrimLeadingSpace: true,
+		}
+
+		if tt.Comment != 0 {
+			p.Comment = tt.Comment
+		}
+		if tt.Raw != 0 {
+			p.Raw = tt.Raw
+		}
+		if tt.Escape != 0 {
+			p.Escape = tt.Escape
+		}
+		if tt.NoTrim {
+			p.TrimLeadingSpace = false
+		}
+		return p
 	}
 
-	input := `
-test1
-test2   # comment
-test3 \#not a comment
-test4 \\#not a comment
-# Comment only
-\#not a comment
-\\#not a comment
-\\\#not a comment
-"Multi
-line"  # comment
-    "   test5   # this it not a comment  "  # this is a comment   
-    "   test6    this it not a comment  "  # this is a comment   
-    "   test7   \"
-# this it not a comment  "  # this is a comment   
-"""
-test8"test8
-test9"
-""test10""
-""test11\\"
-test11"
-""test12\"
-test12"
-""test13\\\"
-test13"
-"test14
-
-test14"
-""
-test15`
-
-	output, err := splitter(input)
-	if err != nil {
-		t.Errorf("Splitter errored: %+v", err)
+	for _, tt := range readTests {
+		t.Run(tt.Name, func(t *testing.T) {
+			p := newParameters(tt)
+			out, err := SplitParams(tt.Input, p)
+			if tt.Error != nil {
+				if !reflect.DeepEqual(err, tt.Error) {
+					t.Fatalf("SplitParams() error mismatch:"+
+						"\nexpected: %v (%#v)\nreceived: %v (%#v)",
+						tt.Error, tt.Error, err, err)
+				}
+				if out != nil {
+					t.Fatalf("SplitParams() unexpected output:"+
+						"\nexpected: nil\nreceived: %q", out)
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("Unexpected SplitParams() error: %+v", err)
+				}
+				if !reflect.DeepEqual(out, tt.Output) {
+					t.Fatalf("SplitParams() unexpected output:"+
+						"\nexpected: %q\nreceived: %q", tt.Output, out)
+				}
+			}
+		})
 	}
-
-	if !reflect.DeepEqual(expected, output) {
-		t.Errorf("Does not match.\nexpected: %q\nreceived: %q", expected, output)
-	}
-
-	t.Logf("%q", output)
 }

@@ -160,29 +160,27 @@ func (r *Reader) readValue() (string, error) {
 				}
 				rawString.WriteString(line)
 			} else {
+				// Trim trailing whitespace
 				line = strings.TrimRightFunc(line, unicode.IsSpace)
-				line = strings.ReplaceAll(line, string(r.Escape)+string(r.Comment), string(r.Comment))
-				if line == "" {
-					continue
-				}
-				break
-			}
-		}
 
-		if err != nil {
-			break
+				// Replace escaped comments with comment character
+				line = strings.ReplaceAll(
+					line, string(r.Escape)+string(r.Comment), string(r.Comment))
+
+				if len(line) > 0 {
+					break
+				}
+			}
 		}
 	}
 
 	if inRaw {
-		err = ErrNoClosingRaw
+		return "", ErrNoClosingRaw
+	} else if err != nil {
+		return "", err
 	}
 
-	if err == nil {
-		return line, nil
-	}
-
-	return "", err
+	return line, nil
 }
 
 // ReadAll reads all the remaining values from r. A successful call returns

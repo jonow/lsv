@@ -13,6 +13,17 @@ const (
 )
 
 // Writer writes values using LSV encoding.
+//
+// The Writer writes records according to the LSV structure described in the
+// README.md. The exported fields can be changed to customize the details before
+// the first call to [Writer.Write] or [Writer.WriteAll].
+//
+// If UseCRLF is true, the Writer ends each output line with \r\n instead of \n.
+//
+// The writes of individual values are buffered. After all data has been
+// written, the user should call the [Writer.Flush] method to guarantee all data
+// has been forwarded to the underlying [io.Writer]. Any errors that occurred
+// should be checked by calling the [Writer.Error] method.
 type Writer struct {
 	// Comment is the comment character. Any characters following the comment
 	// until the next newline are ignored. It must be a valid rune that is not
@@ -55,17 +66,21 @@ func NewWriter(w io.Writer) *Writer {
 	}
 }
 
-// Write writes a single LSV record to w along with any necessary escaping.
-// Writes are buffered, so Flush must eventually be called to ensure that the
+// Write writes a single LSV value to w along with any necessary quoting and
+// escaping.
+//
+// Writes are buffered, so [Flush] must eventually be called to ensure that the
 // record is written to the underlying io.Writer.
 func (w *Writer) Write(value string) error {
 	return w.WriteComment(value, "")
 }
 
-// WriteComment writes a single LSV record to w along with any necessary
-// escaping. If a comment is included, then it is appended to the end of the
-// value. Writes are buffered, so Flush must eventually be called to ensure that
-// the record is written to the underlying io.Writer.
+// WriteComment writes a single LSV record to w along with any necessary quoting
+// and escaping. If a comment is included, then it is appended to the end of the
+// value.
+//
+// Writes are buffered, so [Flush] must eventually be called to ensure that the
+// record is written to the underlying io.Writer.
 func (w *Writer) WriteComment(value, comment string) error {
 	// TODO: check for valid delimiters
 
@@ -76,7 +91,8 @@ func (w *Writer) WriteComment(value, comment string) error {
 	// buffer
 	if value != "" {
 		if !w.valueNeedsEscaping(value) {
-			n, err = strings.NewReplacer("\\#", "\\\\#", "#", "\\#").WriteString(w.w, value)
+			n, err = strings.NewReplacer(
+				"\\#", "\\\\#", "#", "\\#").WriteString(w.w, value)
 			if err != nil {
 				return err
 			}
@@ -89,7 +105,8 @@ func (w *Writer) WriteComment(value, comment string) error {
 			}
 			bytesWritten += n
 
-			n, err = strings.NewReplacer("\\\"\n", "\\\\\"\n", "\"\n", "\\\"\n").WriteString(w.w, value)
+			n, err = strings.NewReplacer(
+				"\\\"\n", "\\\\\"\n", "\"\n", "\\\"\n").WriteString(w.w, value)
 			if err != nil {
 				return err
 			}
@@ -154,20 +171,21 @@ func (w *Writer) WriteComment(value, comment string) error {
 	return err
 }
 
-// Flush writes any buffered data to the underlying io.Writer. To check if an
-// error occurred during the Flush, call Error.
+// Flush writes any buffered data to the underlying [io.Writer]. To check if an
+// error occurred during the [Flush], call [Error].
 func (w *Writer) Flush() {
 	_ = w.w.Flush()
 }
 
-// Error reports any error that has occurred during a previous Write or Flush.
+// Error reports any error that has occurred during a previous [Write] or
+// [Flush].
 func (w *Writer) Error() error {
 	_, err := w.w.Write(nil)
 	return err
 }
 
-// WriteAll writes multiple LSV records to w using Write and then calls Flush,
-// returning any error from the Flush.
+// WriteAll writes multiple LSV records to w using [Write] and then calls
+// [Flush], returning any error from the [Flush].
 func (w *Writer) WriteAll(values []string) error {
 	for _, value := range values {
 		err := w.Write(value)
@@ -183,7 +201,7 @@ type ValueComment struct {
 }
 
 // WriteAllWithComments writes multiple LSV records and comments to w using
-// Write and then calls Flush, returning any error from the Flush.
+// [Write] and then calls [Flush], returning any error from the [Flush].
 func (w *Writer) WriteAllWithComments(values []ValueComment) error {
 	for _, value := range values {
 		err := w.WriteComment(value.value, value.comment)

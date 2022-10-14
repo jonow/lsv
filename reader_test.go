@@ -347,67 +347,67 @@ z
 }, {
 	Name:    "BadComment_IsSpace",
 	Comment: ' ',
-	Error:   errInvalidDelim,
+	Error:   ErrInvalidParams,
 }, {
 	Name:    "BadComment_InvalidRune",
 	Comment: 0xD800,
-	Error:   errInvalidDelim,
+	Error:   ErrInvalidParams,
 }, {
 	Name:    "BadComment_utf8RuneError",
 	Comment: utf8.RuneError,
-	Error:   errInvalidDelim,
+	Error:   ErrInvalidParams,
 }, {
 	Name:    "BadComment_SameAsRaw",
 	Comment: '"',
-	Error:   errInvalidDelim,
+	Error:   ErrInvalidParams,
 }, {
 	Name:    "BadComment_SameAsEscape",
 	Comment: '\\',
-	Error:   errInvalidDelim,
+	Error:   ErrInvalidParams,
 }, {
 	Name:  "BadRaw_IsSpace",
 	Raw:   '\r',
-	Error: errInvalidDelim,
+	Error: ErrInvalidParams,
 }, {
 	Name:  "BadRaw_InvalidRune",
 	Raw:   0xDFFF,
-	Error: errInvalidDelim,
+	Error: ErrInvalidParams,
 }, {
 	Name:  "BadRaw_utf8RuneError",
 	Raw:   utf8.RuneError,
-	Error: errInvalidDelim,
+	Error: ErrInvalidParams,
 }, {
 	Name:    "BadRaw_SameAsComment",
 	Comment: '#',
 	Raw:     '#',
-	Error:   errInvalidDelim,
+	Error:   ErrInvalidParams,
 }, {
 	Name:   "BadRaw_SameAsEscape",
 	Raw:    '\\',
 	Escape: '\\',
-	Error:  errInvalidDelim,
+	Error:  ErrInvalidParams,
 }, {
 	Name:   "BadEscape_IsSpace",
 	Escape: '\n',
-	Error:  errInvalidDelim,
+	Error:  ErrInvalidParams,
 }, {
 	Name:   "BadEscape_InvalidRune",
 	Escape: -1,
-	Error:  errInvalidDelim,
+	Error:  ErrInvalidParams,
 }, {
 	Name:   "BadEscape_utf8RuneError",
 	Escape: utf8.RuneError,
-	Error:  errInvalidDelim,
+	Error:  ErrInvalidParams,
 }, {
 	Name:    "BadEscape_SameAsComment",
 	Comment: '#',
 	Escape:  '#',
-	Error:   errInvalidDelim,
+	Error:   ErrInvalidParams,
 }, {
 	Name:   "BadEscape_SameAsRaw",
 	Raw:    '"',
 	Escape: '"',
-	Error:  errInvalidDelim,
+	Error:  ErrInvalidParams,
 },
 }
 
@@ -417,8 +417,8 @@ func TestNewReader(t *testing.T) {
 	stringReader := strings.NewReader("test")
 
 	expected := &Reader{
-		p: DefaultParameters(),
-		r: bufio.NewReader(stringReader),
+		Parameters: DefaultParameters(),
+		r:          bufio.NewReader(stringReader),
 	}
 
 	newReader := NewReader(stringReader)
@@ -435,7 +435,7 @@ func TestNewCustomReader(t *testing.T) {
 	stringReader := strings.NewReader("test")
 
 	expected := &Reader{
-		p: Parameters{
+		Parameters: Parameters{
 			Comment:          'C',
 			Raw:              '&',
 			Escape:           'E',
@@ -444,7 +444,7 @@ func TestNewCustomReader(t *testing.T) {
 		r: bufio.NewReader(stringReader),
 	}
 
-	newReader := NewCustomReader(stringReader, expected.p)
+	newReader := NewCustomReader(stringReader, expected.Parameters)
 
 	if !reflect.DeepEqual(expected, newReader) {
 		t.Errorf("NewCustomReader did not return the expected reader."+
@@ -458,16 +458,16 @@ func TestReader_ReadAll(t *testing.T) {
 		r := NewReader(strings.NewReader(tt.Input))
 
 		if tt.Comment != 0 {
-			r.p.Comment = tt.Comment
+			r.Comment = tt.Comment
 		}
 		if tt.Raw != 0 {
-			r.p.Raw = tt.Raw
+			r.Raw = tt.Raw
 		}
 		if tt.Escape != 0 {
-			r.p.Escape = tt.Escape
+			r.Escape = tt.Escape
 		}
 		if tt.NoTrim {
-			r.p.TrimLeadingSpace = false
+			r.TrimLeadingSpace = false
 		}
 		return r
 	}
@@ -505,16 +505,16 @@ func TestReader_Read(t *testing.T) {
 		r := NewReader(strings.NewReader(tt.Input))
 
 		if tt.Comment != 0 {
-			r.p.Comment = tt.Comment
+			r.Comment = tt.Comment
 		}
 		if tt.Raw != 0 {
-			r.p.Raw = tt.Raw
+			r.Raw = tt.Raw
 		}
 		if tt.Escape != 0 {
-			r.p.Escape = tt.Escape
+			r.Escape = tt.Escape
 		}
 		if tt.NoTrim {
-			r.p.TrimLeadingSpace = false
+			r.TrimLeadingSpace = false
 		}
 		return r
 	}

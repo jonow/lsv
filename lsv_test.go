@@ -10,8 +10,6 @@ import (
 
 var Line = "this is a value   # This is a comment\n"
 
-// var Line = "this is a value"
-
 func Benchmark_Split(b *testing.B) {
 	line := Line
 	var str strings.Builder

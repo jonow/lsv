@@ -15,9 +15,8 @@ func Split(s string) ([]string, error) {
 // SplitParams splits the LSV string into its values with the specified
 // Parameters.
 func SplitParams(s string, p Parameters) ([]string, error) {
-	if p.Comment == p.Raw || p.Comment == p.Escape || p.Raw == p.Escape ||
-		!validDelim(p.Comment) || !validDelim(p.Raw) || !validDelim(p.Escape) {
-		return nil, errInvalidDelim
+	if !p.Verify() {
+		return nil, ErrInvalidParams
 	}
 
 	var inRaw bool

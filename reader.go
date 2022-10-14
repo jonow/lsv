@@ -11,18 +11,20 @@ import (
 
 // Error messages.
 var (
+	// ErrNoClosingRaw is returned when a quoted value is not closed.
 	ErrNoClosingRaw = errors.New("raw literal not closed")
-	errInvalidDelim = errors.New("invalid comment, raw, or escape delimiter")
+
+	// ErrInvalidParams is returned when the Parameters cannot be verified
+	ErrInvalidParams = errors.New("invalid parameters")
 )
 
-// validDelim determines if the rune cast be used by the reader.
-func validDelim(r rune) bool {
-	return r != 0 && !unicode.IsSpace(r) && utf8.ValidRune(r) && r != utf8.RuneError
-}
-
 // Reader reads values from a LSV-encoded file.
+//
+// The Reader expected input conforming to the LSV structure described in the
+// README.md. The exported fields can be changed to customize the details before
+// the first call to [Reader.Read] or [Reader.ReadAll].
 type Reader struct {
-	p Parameters
+	Parameters
 
 	r *bufio.Reader
 }
@@ -30,8 +32,8 @@ type Reader struct {
 // NewReader returns a new Reader that reads from r.
 func NewReader(r io.Reader) *Reader {
 	return &Reader{
-		p: DefaultParameters(),
-		r: bufio.NewReader(r),
+		Parameters: DefaultParameters(),
+		r:          bufio.NewReader(r),
 	}
 }
 
@@ -39,8 +41,8 @@ func NewReader(r io.Reader) *Reader {
 // parameters.
 func NewCustomReader(r io.Reader, p Parameters) *Reader {
 	return &Reader{
-		p: p,
-		r: bufio.NewReader(r),
+		Parameters: p,
+		r:          bufio.NewReader(r),
 	}
 }
 
@@ -48,6 +50,10 @@ func NewCustomReader(r io.Reader, p Parameters) *Reader {
 // err == nil, not err == io.EOF. Because ReadAll is defined to read until EOF,
 // it does not treat end of file as an error to be reported.
 func (r *Reader) ReadAll() ([]string, error) {
+	if !r.Verify() {
+		return nil, ErrInvalidParams
+	}
+
 	var values []string
 
 	for {
@@ -67,6 +73,9 @@ func (r *Reader) ReadAll() ([]string, error) {
 // closed, Read returns ErrNoClosingRaw. If there is no data left to be read,
 // Read returns io.EOF.
 func (r *Reader) Read() (string, error) {
+	if !r.Verify() {
+		return "", ErrInvalidParams
+	}
 	return r.readValue()
 }
 
@@ -86,12 +95,6 @@ func (r *Reader) readLine() (string, error) {
 
 // readValue is the internal helper function for Read.
 func (r *Reader) readValue() (string, error) {
-	if r.p.Comment == r.p.Raw || r.p.Comment == r.p.Escape ||
-		r.p.Raw == r.p.Escape || !validDelim(r.p.Comment) ||
-		!validDelim(r.p.Raw) || !validDelim(r.p.Escape) {
-		return "", errInvalidDelim
-	}
-
 	var inRaw bool
 	var line string
 	var rawString strings.Builder
@@ -105,7 +108,7 @@ func (r *Reader) readValue() (string, error) {
 
 		if !inRaw {
 			// Trim leading whitespace if not in raw string literal
-			if r.p.TrimLeadingSpace {
+			if r.TrimLeadingSpace {
 				line = strings.TrimLeftFunc(line, unicode.IsSpace)
 			}
 
@@ -115,14 +118,14 @@ func (r *Reader) readValue() (string, error) {
 			}
 
 			// Check if the value is a raw string literal
-			if c, size := utf8.DecodeRuneInString(line); c == r.p.Raw {
+			if c, size := utf8.DecodeRuneInString(line); c == r.Raw {
 				inRaw = true
 				line = line[size:]
 			}
 		}
 
 		// Trim any comment not in raw string
-		line = r.p.trimComment(line, inRaw)
+		line = r.trimComment(line, inRaw)
 		if line != "" {
 			if inRaw {
 				// If in raw string literal, add to rawString instead of
@@ -145,13 +148,13 @@ func (r *Reader) readValue() (string, error) {
 					}
 				}
 
-				if r.p.isRaw(last, prev1, prev2) {
+				if r.isRaw(last, prev1, prev2) {
 					rawString.WriteString(line[:j])
 					line = rawString.String()
 					rawString.Reset()
 					inRaw = false
 					break
-				} else if last == r.p.Raw && prev1 == r.p.Escape {
+				} else if last == r.Raw && prev1 == r.Escape {
 					// Trim escape character
 					line = line[:k] + line[j:]
 				}
@@ -161,8 +164,8 @@ func (r *Reader) readValue() (string, error) {
 				line = strings.TrimRightFunc(line, unicode.IsSpace)
 
 				// Replace escaped comments with comment character
-				line = strings.ReplaceAll(line,
-					string(r.p.Escape)+string(r.p.Comment), string(r.p.Comment))
+				line = strings.ReplaceAll(
+					line, string(r.Escape)+string(r.Comment), string(r.Comment))
 
 				if len(line) > 0 {
 					break

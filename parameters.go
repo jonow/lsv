@@ -1,5 +1,10 @@
 package lsv
 
+import (
+	"unicode"
+	"unicode/utf8"
+)
+
 // Default runes.
 const (
 	defaultComment = '#'
@@ -8,6 +13,8 @@ const (
 )
 
 // Parameters contains customizable parameters for reading LSV files.
+//
+// Comment, Raw, and Escape must be valid according to [Parameters.Verify].
 type Parameters struct {
 	// Comment is the comment character. Any characters following the comment
 	// until the next newline, including leading and trailing whitespace, are
@@ -85,4 +92,20 @@ func isChar(char, escape, c, prev1, prev2 rune) bool {
 	isEsc2 := prev2 == escape
 
 	return match && !isEsc1 && !(isEsc1 && isEsc2)
+}
+
+// Verify checks that the Comment, Raw, and Escape are all unique and valid
+// delimiters. A valid delimiter is any valid UTF-8 non-whitespace character
+// that is not equal to 0 or utf8.RuneError.
+func (p Parameters) Verify() bool {
+	return !(p.Comment == p.Raw || p.Comment == p.Escape || p.Raw == p.Escape ||
+		!validDelim(p.Comment) || !validDelim(p.Raw) || !validDelim(p.Escape))
+}
+
+// validDelim determines if the rune is a valid delimiter
+func validDelim(r rune) bool {
+	return r != 0 &&
+		!unicode.IsSpace(r) &&
+		utf8.ValidRune(r) &&
+		r != utf8.RuneError
 }

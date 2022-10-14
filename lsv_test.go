@@ -8,8 +8,12 @@ import (
 	"testing"
 )
 
+var Line = "this is a value   # This is a comment\n"
+
+// var Line = "this is a value"
+
 func Benchmark_Split(b *testing.B) {
-	line := "this is a value   # This is a comment\n"
+	line := Line
 	var str strings.Builder
 	for n := 0; n < b.N; n++ {
 		b.StopTimer()
@@ -26,7 +30,7 @@ func Benchmark_Split(b *testing.B) {
 }
 
 func Benchmark_ReadAll(b *testing.B) {
-	line := "this is a value   # This is a comment\n"
+	line := Line
 	var str strings.Builder
 	for n := 0; n < b.N; n++ {
 		b.StopTimer()
@@ -42,7 +46,7 @@ func Benchmark_ReadAll(b *testing.B) {
 }
 
 func Benchmark_CSV(b *testing.B) {
-	line := "this is a value   # This is a comment\n"
+	line := Line
 	var str strings.Builder
 	for n := 0; n < b.N; n++ {
 		b.StopTimer()

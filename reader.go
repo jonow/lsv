@@ -9,13 +9,6 @@ import (
 	"unicode/utf8"
 )
 
-// Default runes.
-const (
-	defaultComment = '#'
-	defaultRaw     = '"'
-	defaultEscape  = '\\'
-)
-
 // Error messages.
 var (
 	ErrNoClosingRaw = errors.New("raw literal not closed")
@@ -29,29 +22,7 @@ func validDelim(r rune) bool {
 
 // Reader reads values from a LSV-encoded file.
 type Reader struct {
-	// Comment is the comment character. Any characters following the comment
-	// until the next newline, including leading and trailing whitespace, are
-	// ignored. It must be a valid rune that is not whitespace. Comment
-	// characters preceded by the Escape rune are unescaped and treated as
-	// values.
-	Comment rune
-
-	// Raw is the character that indicates the start and end of a raw literal
-	// and can only appear as the first or last non-whitespace character on a
-	// line. Any text contained between two Raw characters is considered a
-	// value. That is, all Comment, Raw, and Escape characters are part of the
-	// value except if the closing Raw character is escaped.
-	Raw rune
-
-	// Escape is the character used to indicate that a Comment or Raw character
-	// is part of the value. If either of these characters are escaped, the
-	// escape character is stripped and the original character is maintained.
-	// An Escape character can be escaped itself.
-	Escape rune
-
-	// If TrimLeadingSpace is true, leading white space in a field is ignored.
-	// This is true by default.
-	TrimLeadingSpace bool
+	p Parameters
 
 	r *bufio.Reader
 }
@@ -59,17 +30,42 @@ type Reader struct {
 // NewReader returns a new Reader that reads from r.
 func NewReader(r io.Reader) *Reader {
 	return &Reader{
-		Comment:          defaultComment,
-		Raw:              defaultRaw,
-		Escape:           defaultEscape,
-		TrimLeadingSpace: true,
-		r:                bufio.NewReader(r),
+		p: DefaultParameters(),
+		r: bufio.NewReader(r),
+	}
+}
+
+// NewCustomReader returns a new Reader that reads from r with custom LSV
+// parameters.
+func NewCustomReader(r io.Reader, p Parameters) *Reader {
+	return &Reader{
+		p: p,
+		r: bufio.NewReader(r),
+	}
+}
+
+// ReadAll reads all the remaining values from r. A successful call returns
+// err == nil, not err == io.EOF. Because ReadAll is defined to read until EOF,
+// it does not treat end of file as an error to be reported.
+func (r *Reader) ReadAll() ([]string, error) {
+	var values []string
+
+	for {
+		value, err := r.readValue()
+		if err == io.EOF {
+			return values, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		values = append(values, value)
 	}
 }
 
 // Read reads one value from r. If a raw string literal is started but not
-// closed, Read returns nil, ErrNoClosingRaw. If there is no data left to be
-// read, Read returns nil, io.EOF.
+// closed, Read returns ErrNoClosingRaw. If there is no data left to be read,
+// Read returns io.EOF.
 func (r *Reader) Read() (string, error) {
 	return r.readValue()
 }
@@ -90,8 +86,9 @@ func (r *Reader) readLine() (string, error) {
 
 // readValue is the internal helper function for Read.
 func (r *Reader) readValue() (string, error) {
-	if r.Comment == r.Raw || r.Comment == r.Escape || r.Raw == r.Escape ||
-		!validDelim(r.Comment) || !validDelim(r.Raw) || !validDelim(r.Escape) {
+	if r.p.Comment == r.p.Raw || r.p.Comment == r.p.Escape ||
+		r.p.Raw == r.p.Escape || !validDelim(r.p.Comment) ||
+		!validDelim(r.p.Raw) || !validDelim(r.p.Escape) {
 		return "", errInvalidDelim
 	}
 
@@ -108,7 +105,7 @@ func (r *Reader) readValue() (string, error) {
 
 		if !inRaw {
 			// Trim leading whitespace if not in raw string literal
-			if r.TrimLeadingSpace {
+			if r.p.TrimLeadingSpace {
 				line = strings.TrimLeftFunc(line, unicode.IsSpace)
 			}
 
@@ -118,14 +115,14 @@ func (r *Reader) readValue() (string, error) {
 			}
 
 			// Check if the value is a raw string literal
-			if c, size := utf8.DecodeRuneInString(line); c == r.Raw {
+			if c, size := utf8.DecodeRuneInString(line); c == r.p.Raw {
 				inRaw = true
 				line = line[size:]
 			}
 		}
 
 		// Trim any comment not in raw string
-		line = r.trimComment(line, inRaw)
+		line = r.p.trimComment(line, inRaw)
 		if line != "" {
 			if inRaw {
 				// If in raw string literal, add to rawString instead of
@@ -148,13 +145,13 @@ func (r *Reader) readValue() (string, error) {
 					}
 				}
 
-				if r.isRaw(last, prev1, prev2) {
+				if r.p.isRaw(last, prev1, prev2) {
 					rawString.WriteString(line[:j])
 					line = rawString.String()
 					rawString.Reset()
 					inRaw = false
 					break
-				} else if last == r.Raw && prev1 == r.Escape {
+				} else if last == r.p.Raw && prev1 == r.p.Escape {
 					// Trim escape character
 					line = line[:k] + line[j:]
 				}
@@ -164,8 +161,8 @@ func (r *Reader) readValue() (string, error) {
 				line = strings.TrimRightFunc(line, unicode.IsSpace)
 
 				// Replace escaped comments with comment character
-				line = strings.ReplaceAll(
-					line, string(r.Escape)+string(r.Comment), string(r.Comment))
+				line = strings.ReplaceAll(line,
+					string(r.p.Escape)+string(r.p.Comment), string(r.p.Comment))
 
 				if len(line) > 0 {
 					break
@@ -181,66 +178,4 @@ func (r *Reader) readValue() (string, error) {
 	}
 
 	return line, nil
-}
-
-// ReadAll reads all the remaining values from r. A successful call returns
-// err == nil, not err == io.EOF. Because ReadAll is defined to read until EOF,
-// it does not treat end of file as an error to be reported.
-func (r *Reader) ReadAll() ([]string, error) {
-	var values []string
-
-	for {
-		value, err := r.readValue()
-		if err == io.EOF {
-			return values, nil
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		values = append(values, value)
-	}
-}
-
-// trimComment removes any comment that is not in a raw string literal.
-func (r *Reader) trimComment(line string, inRaw bool) string {
-	var prev1, prev2 rune
-	for j, char := range line {
-		if r.isComment(char, prev1, prev2) && !inRaw {
-			line = line[:j]
-			break
-		} else if r.isRaw(char, prev1, prev2) && inRaw {
-			inRaw = false
-		}
-
-		prev2 = prev1
-		prev1 = char
-	}
-
-	return line
-}
-
-// isComment determines if the rune is an unescaped comment character.
-func (r *Reader) isComment(c, prev1, prev2 rune) bool {
-	return isChar(r.Comment, r.Escape, c, prev1, prev2)
-}
-
-// isRaw determines if the rune is an unescaped raw character.
-func (r *Reader) isRaw(c, prev1, prev2 rune) bool {
-	return isChar(r.Raw, r.Escape, c, prev1, prev2)
-}
-
-// isChar determines if the rune at the index matches the char and that it is
-// not escaped.
-func isChar(char, escape, c, prev1, prev2 rune) bool {
-	// Check if the character matches
-	match := c == char
-
-	// Check if the character is escaped
-	isEsc1 := prev1 == escape
-
-	// Check if the escape character is escaped
-	isEsc2 := prev2 == escape
-
-	return match && !isEsc1 && !(isEsc1 && isEsc2)
 }

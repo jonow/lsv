@@ -1,5 +1,5 @@
 # Line-Seperated Values (LSV)
-This go library is used to read line-separated values as a single-dimensional
+This Go library is used to read line-separated values as a single-dimensional
 arrays with support for comments.
 
 All values must be seperated by a new-line (\n) with all leading and trailing
@@ -13,3 +13,9 @@ whitespace and comments in escaped values are preserved.
 Empty lines are ignored. Lines with only "" are considered empty values.
 
 Comments and quotes can be escaped using \.
+
+To do:
+ * Figure out why benchmarks are worse from read than splitter
+ * Figure out why benchmarks are worse for lsv than csv
+ * Add tests for writer
+ * 

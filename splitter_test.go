@@ -8,12 +8,7 @@ import (
 // Tests that SplitParams returns the expected error or value for each test.
 func TestSplitParams(t *testing.T) {
 	newParameters := func(tt readTest) Parameters {
-		p := Parameters{
-			Comment:          defaultComment,
-			Raw:              defaultRaw,
-			Escape:           defaultEscape,
-			TrimLeadingSpace: true,
-		}
+		p := DefaultParameters()
 
 		if tt.Comment != 0 {
 			p.Comment = tt.Comment

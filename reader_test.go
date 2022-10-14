@@ -2,6 +2,7 @@ package lsv
 
 import (
 	"bufio"
+	"io"
 	"reflect"
 	"strings"
 	"testing"
@@ -412,11 +413,8 @@ func TestNewReader(t *testing.T) {
 	stringReader := strings.NewReader("test")
 
 	expected := &Reader{
-		Comment:          defaultComment,
-		Raw:              defaultRaw,
-		Escape:           defaultEscape,
-		TrimLeadingSpace: true,
-		r:                bufio.NewReader(stringReader),
+		p: DefaultParameters(),
+		r: bufio.NewReader(stringReader),
 	}
 
 	newReader := NewReader(stringReader)
@@ -427,22 +425,45 @@ func TestNewReader(t *testing.T) {
 	}
 }
 
+// Tests that NewCustomReader returns a pointer to a new Reader with the
+// expected values.
+func TestNewCustomReader(t *testing.T) {
+	stringReader := strings.NewReader("test")
+
+	expected := &Reader{
+		p: Parameters{
+			Comment:          'C',
+			Raw:              '&',
+			Escape:           'E',
+			TrimLeadingSpace: false,
+		},
+		r: bufio.NewReader(stringReader),
+	}
+
+	newReader := NewCustomReader(stringReader, expected.p)
+
+	if !reflect.DeepEqual(expected, newReader) {
+		t.Errorf("NewCustomReader did not return the expected reader."+
+			"\nexpected: %+v\nreceived: %+v", expected, newReader)
+	}
+}
+
 // Tests that Reader.ReadAll returns the expected error or value for each test.
 func TestReader_ReadAll(t *testing.T) {
 	newReader := func(tt readTest) *Reader {
 		r := NewReader(strings.NewReader(tt.Input))
 
 		if tt.Comment != 0 {
-			r.Comment = tt.Comment
+			r.p.Comment = tt.Comment
 		}
 		if tt.Raw != 0 {
-			r.Raw = tt.Raw
+			r.p.Raw = tt.Raw
 		}
 		if tt.Escape != 0 {
-			r.Escape = tt.Escape
+			r.p.Escape = tt.Escape
 		}
 		if tt.NoTrim {
-			r.TrimLeadingSpace = false
+			r.p.TrimLeadingSpace = false
 		}
 		return r
 	}
@@ -453,22 +474,80 @@ func TestReader_ReadAll(t *testing.T) {
 			out, err := r.ReadAll()
 			if tt.Error != nil {
 				if !reflect.DeepEqual(err, tt.Error) {
-					t.Fatalf("ReadAll() error mismatch:"+
+					t.Fatalf("ReadAll error mismatch:"+
 						"\nexpected: %v (%#v)\nreceived: %v (%#v)",
 						tt.Error, tt.Error, err, err)
 				}
 				if out != nil {
-					t.Fatalf("ReadAll() unexpected output:"+
+					t.Fatalf("ReadAll unexpected output:"+
 						"\nexpected: nil\nreceived: %q", out)
 				}
 			} else {
 				if err != nil {
-					t.Fatalf("Unexpected Readall() error: %+v", err)
+					t.Fatalf("Unexpected Readall error: %+v", err)
 				}
 				if !reflect.DeepEqual(out, tt.Output) {
-					t.Fatalf("ReadAll() unexpected output:"+
+					t.Fatalf("ReadAll unexpected output:"+
 						"\nexpected: %q\nreceived: %q", tt.Output, out)
 				}
+			}
+		})
+	}
+}
+
+// Tests that Reader.Read returns the expected error or value for each test.
+func TestReader_Read(t *testing.T) {
+	newReader := func(tt readTest) *Reader {
+		r := NewReader(strings.NewReader(tt.Input))
+
+		if tt.Comment != 0 {
+			r.p.Comment = tt.Comment
+		}
+		if tt.Raw != 0 {
+			r.p.Raw = tt.Raw
+		}
+		if tt.Escape != 0 {
+			r.p.Escape = tt.Escape
+		}
+		if tt.NoTrim {
+			r.p.TrimLeadingSpace = false
+		}
+		return r
+	}
+
+	for _, tt := range readTests {
+		t.Run(tt.Name, func(t *testing.T) {
+			r := newReader(tt)
+
+			i := 0
+			for line, err := r.Read(); err != io.EOF; line, err = r.Read() {
+				if tt.Error != nil {
+					if err != nil {
+						if !reflect.DeepEqual(err, tt.Error) {
+							t.Fatalf("Read error mismatch:"+
+								"\nexpected: %v (%#v)\nreceived: %v (%#v)",
+								tt.Error, tt.Error, err, err)
+						} else if line != "" {
+							t.Fatalf("Read unexpected output:"+
+								"\nexpected: nil\nreceived: %q", line)
+						} else {
+							return
+						}
+					}
+				} else {
+					if err != nil {
+						t.Fatalf("Unexpected Read error: %+v", err)
+					}
+					if line != tt.Output[i] {
+						t.Fatalf("ReadAll unexpected output:"+
+							"\nexpected: %q\nreceived: %q", tt.Output[i], line)
+					}
+				}
+				i++
+			}
+
+			if tt.Error != nil {
+				t.Fatalf("Read failed to error. Expected error: %v", tt.Error)
 			}
 		})
 	}

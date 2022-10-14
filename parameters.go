@@ -7,7 +7,7 @@ const (
 	defaultEscape  = '\\'
 )
 
-// Parameters tracks optional LSV parameters.
+// Parameters contains customizable parameters for reading LSV files.
 type Parameters struct {
 	// Comment is the comment character. Any characters following the comment
 	// until the next newline, including leading and trailing whitespace, are

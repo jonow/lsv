@@ -1,18 +1,59 @@
 # Line-Seperated Values (LSV)
-This Go library is used to read line-separated values as a single-dimensional
-arrays with support for comments.
+This Go library reads and writes line-separated values (LSV) files.
 
-All values must be seperated by a new-line (\n) with all leading and trailing
-whitespace trimmed. Comments begin with # and end at the end of the line.
+An LSV is defined as a text file containing zero or more values seperated by the
+newline character (`\n`). LSV also support comments, which are stripped when the
+file is read.
 
-Values can be escaped if they start and end with quotes (" "). The starting
-quote must be the first non-whitespace character on a line and the end quote
-must be the last non-whitespace or non comment character on the line. All
-whitespace and comments in escaped values are preserved.
+```text
+value1
+value2
+value3
+```
 
-Empty lines are ignored. Lines with only "" are considered empty values.
+Block and inline comments are both allowed. All comments are denoted using the
+hash character (`#`); any values after a hash character until the next new line
+are considered a comments. Each line of a block comment must start with the hash
+character. All whitespace between a value and an inline comment is stripped. A
+hash character can be escaped using the escape character (`\`).
 
-Comments and quotes can be escaped using \.
+The source:
+
+```text
+value1  # A comment
+value2  \# Not a comment
+```
+
+results in the values
+
+```text
+{`value1`, `value2  \# Not a comment`}
+```
+
+Lines that start and stop with a quote character (`"`) (excluding comments and
+whitespace) are quoted values and the beginning and ending quotes are not part
+of the value. All whitespace and comments inside quoted values are preserved and
+included as part of the value. A quote character can be included by using the
+escape character (`\`) before the quotation character (`\"`).
+
+The source:
+
+```text
+# A comment
+  value1  # A comment
+"  value2  # Not a comment" # A comment
+```
+
+results in the values
+
+```text
+{`value1`, `  value2  # Not a comment`}
+```
+
+Blank lines are ignored. Lines with only whitespace are considered blank lines
+unless they are quoted. Carriage returns (`\r`) before newlines are removed. An
+empty value can be represented using quotes `""`.
+
 
 To do:
  * Figure out why benchmarks are worse from read than splitter

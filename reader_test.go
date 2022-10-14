@@ -53,8 +53,8 @@ var readTests = []readTest{{
 	NoTrim: true,
 }, {
 	Name:   "BinaryBlobField",
-	Input:  "x09\x41\xb4\x1c\naktau",
-	Output: []string{"x09A\xb4\x1c", "aktau"},
+	Input:  "x09\x41\xb4\x1c\nAKTau",
+	Output: []string{"x09A\xb4\x1c", "AKTau"},
 }, {
 	Name:   "QuotedFieldMultipleLF",
 	Input:  "\"\n\n\n\n\"",
@@ -134,6 +134,10 @@ xxx
 	Name:   "EmptyValueNewLine",
 	Input:  "\"\"\n",
 	Output: []string{""},
+}, {
+	Name:   "TrailingLeadingSpaces",
+	Input:  "a\n b \n   c   ",
+	Output: []string{"a", "b", "c"},
 }, {
 	Name: "EmptyValues",
 	Input: `x
@@ -252,8 +256,8 @@ b`,
 	NoTrim: true,
 }, {
 	Name:   "BinaryBlobFieldWithComment",
-	Input:  "x09\x41\xb4\x1c # Comment\naktau #comment",
-	Output: []string{"x09A\xb4\x1c", "aktau"},
+	Input:  "x09\x41\xb4\x1c # Comment\nAKTau #comment",
+	Output: []string{"x09A\xb4\x1c", "AKTau"},
 }, {
 	Name:   "QuotedFieldMultipleLFWithComment",
 	Input:  "\"\n\n\n\n\" # Comment",
@@ -322,8 +326,8 @@ z
 	// λ and θ start with the same byte.
 	// This tests that the parser doesn't confuse such characters.
 	Name:    "NonASCIICommaConfusion",
-	Input:   "\"abθcd\" λ comment\nefθgh λ comment",
-	Output:  []string{"abθcd", "efθgh"},
+	Input:   "\"ABθCD\" λ comment\nEFθGH λ comment",
+	Output:  []string{"ABθCD", "EFθGH"},
 	Comment: 'λ',
 }, {
 	Name:    "NonASCIICommentConfusion",

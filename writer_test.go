@@ -69,7 +69,8 @@ func TestWriter_WriteAll(t *testing.T) {
 	}
 
 	if !reflect.DeepEqual(input, values) {
-		t.Errorf("Output doesn't match input.\nexpected: %q\nreceived: %q", input, values)
+		t.Errorf("Output doesn't match input."+
+			"\nexpected: %q\nreceived: %q", input, values)
 	}
 
 	for i, val := range input {
@@ -121,9 +122,9 @@ func TestWriter_WriteAllWithComments(t *testing.T) {
 	}
 
 	for i, val := range input[1:] {
-		if val.value != values[i] {
+		if val.Value != values[i] {
 			t.Errorf("Values #%d does not match.\nexpected: %q\nreceived: %q",
-				i, val.value, values[i])
+				i, val.Value, values[i])
 		}
 	}
 }

@@ -103,7 +103,7 @@ func isChar(char, escape, c, prev1, prev2 rune) bool {
 
 // Verify checks that the Comment, Raw, and Escape are all unique and valid
 // delimiters. A valid delimiter is any valid UTF-8 non-whitespace character
-// that is not equal to 0 or utf8.RuneError.
+// that is not equal to 0 or [utf8.RuneError].
 func (p Parameters) Verify() bool {
 	return !(p.Comment == p.Raw || p.Comment == p.Escape || p.Raw == p.Escape ||
 		!validDelim(p.Comment) || !validDelim(p.Raw) || !validDelim(p.Escape))

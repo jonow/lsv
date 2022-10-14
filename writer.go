@@ -76,8 +76,8 @@ func NewWriter(w io.Writer) *Writer {
 // Write writes a single LSV value to w along with any necessary quoting and
 // escaping.
 //
-// Writes are buffered, so [Flush] must eventually be called to ensure that the
-// record is written to the underlying io.Writer.
+// Writes are buffered, so [Writer.Flush] must eventually be called to ensure
+// that the record is written to the underlying [io.Writer].
 func (w *Writer) Write(value string) error {
 	return w.WriteComment(value, "")
 }
@@ -87,7 +87,7 @@ func (w *Writer) Write(value string) error {
 // value.
 //
 // Writes are buffered, so [Flush] must eventually be called to ensure that the
-// record is written to the underlying io.Writer.
+// record is written to the underlying [io.Writer].
 func (w *Writer) WriteComment(value, comment string) error {
 	// TODO: check for valid delimiters
 
@@ -179,20 +179,20 @@ func (w *Writer) WriteComment(value, comment string) error {
 }
 
 // Flush writes any buffered data to the underlying [io.Writer]. To check if an
-// error occurred during the [Flush], call [Error].
+// error occurred during the [Writer.Flush], call [Writer.Error].
 func (w *Writer) Flush() {
 	_ = w.w.Flush()
 }
 
-// Error reports any error that has occurred during a previous [Write] or
-// [Flush].
+// Error reports any error that has occurred during a previous [Writer.Write] or
+// [Writer.Flush].
 func (w *Writer) Error() error {
 	_, err := w.w.Write(nil)
 	return err
 }
 
-// WriteAll writes multiple LSV records to w using [Write] and then calls
-// [Flush], returning any error from the [Flush].
+// WriteAll writes multiple LSV records to w using [Writer.Write] and then calls
+// [Writer.Flush], returning any error from the [Writer.Flush].
 func (w *Writer) WriteAll(values []string) error {
 	for _, value := range values {
 		err := w.Write(value)
@@ -203,15 +203,18 @@ func (w *Writer) WriteAll(values []string) error {
 	return w.w.Flush()
 }
 
+// ValueComment represents a single value in an LSV file. This structure
+// supports including a comment on a line when writing to an LSV.
 type ValueComment struct {
-	value, comment string
+	Value, Comment string
 }
 
-// WriteAllWithComments writes multiple LSV records and comments to w using
-// [Write] and then calls [Flush], returning any error from the [Flush].
+// WriteAllWithComments writes multiple LSV records and their optional comments
+// to w using [Writer.Write] and then calls [Writer.Flush], returning any error
+// from the [Writer.Flush].
 func (w *Writer) WriteAllWithComments(values []ValueComment) error {
 	for _, value := range values {
-		err := w.WriteComment(value.value, value.comment)
+		err := w.WriteComment(value.Value, value.Comment)
 		if err != nil {
 			return err
 		}

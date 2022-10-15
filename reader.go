@@ -155,7 +155,7 @@ func (r *Reader) readValue() (string, error) {
 					}
 				}
 
-				if r.isRaw(last, prev1, prev2) {
+				if r.isRaw(last, prev1) {
 					rawString.WriteString(line[:j])
 					line = rawString.String()
 					rawString.Reset()

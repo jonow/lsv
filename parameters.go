@@ -58,49 +58,6 @@ func DefaultParameters() Parameters {
 	}
 }
 
-// trimComment removes any comment that is not in a raw string literal.
-func (p Parameters) trimComment(line string, inRaw bool) string {
-	var prev1, prev2 rune
-	for j, char := range line {
-		if p.isComment(char, prev1, prev2) && !inRaw {
-			line = line[:j]
-			break
-		} else if p.isRaw(char, prev1, prev2) && inRaw {
-			inRaw = false
-		}
-
-		prev2 = prev1
-		prev1 = char
-	}
-
-	return line
-}
-
-// isComment determines if the rune is an unescaped comment character.
-func (p Parameters) isComment(c, prev1, prev2 rune) bool {
-	return isChar(p.Comment, p.Escape, c, prev1, prev2)
-}
-
-// isRaw determines if the rune is an unescaped raw character.
-func (p Parameters) isRaw(c, prev1, prev2 rune) bool {
-	return isChar(p.Raw, p.Escape, c, prev1, prev2)
-}
-
-// isChar determines if the rune at the index matches the char and that it is
-// not escaped.
-func isChar(char, escape, c, prev1, prev2 rune) bool {
-	// Check if the character matches
-	match := c == char
-
-	// Check if the character is escaped
-	isEsc1 := prev1 == escape
-
-	// Check if the escape character is escaped
-	isEsc2 := prev2 == escape
-
-	return match && !isEsc1 && !(isEsc1 && isEsc2)
-}
-
 // Verify checks that the Comment, Raw, and Escape are all unique and valid
 // delimiters. A valid delimiter is any valid UTF-8 non-whitespace character
 // that is not equal to 0 or [utf8.RuneError].
@@ -115,4 +72,47 @@ func validDelim(r rune) bool {
 		!unicode.IsSpace(r) &&
 		utf8.ValidRune(r) &&
 		r != utf8.RuneError
+}
+
+// trimComment removes any comment that is not in a raw string literal. It does
+// not trim whitespace.
+func (p Parameters) trimComment(line string, inRaw bool) string {
+	var prev rune
+	for j, char := range line {
+		if p.isComment(char, prev) && !inRaw {
+			line = line[:j]
+			break
+		} else if p.isRaw(char, prev) && inRaw {
+			inRaw = false
+		}
+
+		prev = char
+	}
+
+	return line
+}
+
+// isComment determines if the rune is an unescaped comment character.
+func (p Parameters) isComment(c, prev rune) bool {
+	return isChar(p.Comment, c, prev, p.Escape)
+}
+
+// isRaw determines if the rune is an unescaped raw character.
+func (p Parameters) isRaw(c, prev rune) bool {
+	return isChar(p.Raw, c, prev, p.Escape)
+}
+
+// isChar determines if c matches char and if c is unescaped. Returns true if
+// they match. Returns false if they do not match or if c is escaped.
+//
+// char is the rune that we are matching c against. prev is the rune that appear
+// before c. escapeChar is the rune used to escape characters.
+func isChar(char, c, prev, escapeChar rune) bool {
+	// Check if the character matches
+	match := c == char
+
+	// Check if the character is escaped
+	isEsc := prev == escapeChar
+
+	return match && !isEsc
 }

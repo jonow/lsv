@@ -51,12 +51,29 @@ results in the values
 ```
 
 Blank lines are ignored. Lines with only whitespace are considered blank lines
-unless they are quoted. Carriage returns (`\r`) before newlines are removed. An
-empty value can be represented using quotes `""`.
+unless they are quoted. Carriage returns (`\r`) before newlines are removed.
+Carriage returns in quoted values are untouched. An empty value can be
+represented using quotes `""`.
+
+The source:
+
+```text
+value1
+
+value2
+
+""
+```
+
+results in the values
+
+```text
+{`value1`, `value2`, ``}
+```
 
 
 To do:
  * Figure out why benchmarks are worse from read than splitter
  * Figure out why benchmarks are worse for lsv than csv
  * Add tests for writer
- * 
+ * Add real file and large file testing and benchmarking

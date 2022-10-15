@@ -86,8 +86,8 @@ func (w *Writer) Write(value string) error {
 // and escaping. If a comment is included, then it is appended to the end of the
 // value.
 //
-// Writes are buffered, so [Flush] must eventually be called to ensure that the
-// record is written to the underlying [io.Writer].
+// Writes are buffered, so [Writer.Flush] must eventually be called to ensure
+// that the record is written to the underlying [io.Writer].
 func (w *Writer) WriteComment(value, comment string) error {
 	// TODO: check for valid delimiters
 
@@ -248,10 +248,19 @@ func (w *Writer) valueNeedsEscaping(value string) bool {
 	return false
 }
 
-func firstRune(str string) rune {
-	return []rune(str)[0]
+// firstRune returns the first rune in the string. Returns 0 for an empty
+// string.
+func firstRune(s string) rune {
+	if s == "" {
+		return 0
+	}
+	return []rune(s)[0]
 }
 
-func lastRune(str string) rune {
-	return []rune(str)[len([]rune(str))-1]
+// lastRune returns the last rune in the string. Returns 0 for an empty string.
+func lastRune(s string) rune {
+	if s == "" {
+		return 0
+	}
+	return []rune(s)[len([]rune(s))-1]
 }

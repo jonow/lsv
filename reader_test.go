@@ -221,16 +221,16 @@ b`,
 	Output: []string{"a"},
 }, {
 	Name:   "EscapedInlineComment",
-	Input:  "a \\# Comment  ",
-	Output: []string{"a # Comment"},
+	Input:  `a \# Comment  `,
+	Output: []string{`a # Comment`},
 }, {
 	Name:   "NonEscapedInlineComment",
-	Input:  "a \\\\# Comment  ",
-	Output: []string{"a \\# Comment"},
+	Input:  `a \\# Comment  `,
+	Output: []string{`a \# Comment`},
 }, {
 	Name:   "NonEscapedInlineComment2",
-	Input:  "a \\\\\\# Comment  ",
-	Output: []string{"a \\\\# Comment"},
+	Input:  `a \\\# Comment  `,
+	Output: []string{`a \\# Comment`},
 }, {
 	Name:   "SimpleWithComments",
 	Input:  "a # Comment 1\nb\t# Comment 2\nc\f# Comment 3\n",
@@ -279,8 +279,12 @@ b`,
 	// that condition.
 	Name: "HugeLinesWithComments",
 	Input: strings.Repeat("# Comment\n", 10000) + "\n" +
-		strings.Repeat("@", 5000) + " # Comment \n" + strings.Repeat("*", 5000) + " \\# Not a comment",
-	Output: []string{strings.Repeat("@", 5000), strings.Repeat("*", 5000) + " # Not a comment"},
+		strings.Repeat("@", 5000) + " # Comment \n" +
+		strings.Repeat("*", 5000) + " \\# Not a comment",
+	Output: []string{
+		strings.Repeat("@", 5000),
+		strings.Repeat("*", 5000) + " # Not a comment",
+	},
 }, {
 	Name:   "CRLFWithComments",
 	Input:  "a# Comment 1\nb # Comment 2\r\nc# Comment 3\nd\r\n",
@@ -420,7 +424,7 @@ z
 
 // Tests that NewReader returns a pointer to a new Reader with the expected
 // default values.
-func TestNewReader(t *testing.T) {
+func TestNewReader_Consistency(t *testing.T) {
 	stringReader := strings.NewReader("test")
 
 	expected := &Reader{

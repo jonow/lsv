@@ -32,10 +32,7 @@ const (
 // has been forwarded to the underlying [io.Writer]. Any errors that occurred
 // should be checked by calling the [Writer.Error] method.
 type Writer struct {
-	// Comment is the comment character. Any characters following the comment
-	// until the next newline are ignored. It must be a valid rune that is not
-	// whitespace.
-	Comment rune
+	Parameters
 
 	// LeadingCommentSpace is the space written before the Comment character
 	// when writing a comment.
@@ -44,15 +41,6 @@ type Writer struct {
 	// TrailingCommentSpace is the space written after the Comment character
 	// when writing a comment.
 	TrailingCommentSpace string
-
-	// Raw is the character that indicates the start and end of a raw literal
-	// and can only appear as the first or last non-whitespace character on a
-	// line.
-	Raw rune
-
-	// Escape is the character used to indicate that a Comment or Raw character
-	// is part of the value.
-	Escape rune
 
 	// UseCRLF uses \r\n as the line terminator if set to true.
 	UseCRLF bool
@@ -63,34 +51,81 @@ type Writer struct {
 // NewWriter returns a new Writer that write to w.
 func NewWriter(w io.Writer) *Writer {
 	return &Writer{
-		Comment:              defaultComment,
+		Parameters:           DefaultParameters(),
 		LeadingCommentSpace:  defaultLeadingCommentSpace,
 		TrailingCommentSpace: defaultTrailingCommentSpace,
-		Raw:                  defaultRaw,
-		Escape:               defaultEscape,
 		UseCRLF:              false,
 		w:                    bufio.NewWriter(w),
 	}
 }
 
+// WriteAll writes multiple LSV records to w using [Writer.Write] and then calls
+// [Writer.Flush], returning any error from the [Writer.Flush].
+func (w *Writer) WriteAll(values []string) error {
+	if !w.Verify() {
+		return ErrInvalidParams
+	}
+
+	for _, value := range values {
+		err := w.writeComment(value, "")
+		if err != nil {
+			return err
+		}
+	}
+	return w.w.Flush()
+}
+
 // Write writes a single LSV value to w along with any necessary quoting and
 // escaping.
 //
-// Writes are buffered, so [Flush] must eventually be called to ensure that the
-// record is written to the underlying io.Writer.
+// Writes are buffered, so [Writer.Flush] must eventually be called to ensure
+// that the record is written to the underlying [io.Writer].
 func (w *Writer) Write(value string) error {
-	return w.WriteComment(value, "")
+	if !w.Verify() {
+		return ErrInvalidParams
+	}
+	return w.writeComment(value, "")
+}
+
+// ValueComment represents a single value in an LSV file. This structure
+// supports including a comment on a line when writing to an LSV.
+type ValueComment struct {
+	Value, Comment string
+}
+
+// WriteAllWithComments writes multiple LSV records and their optional comments
+// to w using [Writer.Write] and then calls [Writer.Flush], returning any error
+// from the [Writer.Flush].
+func (w *Writer) WriteAllWithComments(values []ValueComment) error {
+	if !w.Verify() {
+		return ErrInvalidParams
+	}
+
+	for _, value := range values {
+		err := w.writeComment(value.Value, value.Comment)
+		if err != nil {
+			return err
+		}
+	}
+	return w.w.Flush()
 }
 
 // WriteComment writes a single LSV record to w along with any necessary quoting
 // and escaping. If a comment is included, then it is appended to the end of the
 // value.
 //
-// Writes are buffered, so [Flush] must eventually be called to ensure that the
-// record is written to the underlying io.Writer.
+// Writes are buffered, so [Writer.Flush] must eventually be called to ensure
+// that the record is written to the underlying [io.Writer].
 func (w *Writer) WriteComment(value, comment string) error {
-	// TODO: check for valid delimiters
+	if !w.Verify() {
+		return ErrInvalidParams
+	}
+	return w.writeComment(value, comment)
+}
 
+// writeComment writes a single LSV record to w with an included comment,
+// if specified.
+func (w *Writer) writeComment(value, comment string) error {
 	var bytesWritten, n int
 	var err error
 
@@ -179,44 +214,16 @@ func (w *Writer) WriteComment(value, comment string) error {
 }
 
 // Flush writes any buffered data to the underlying [io.Writer]. To check if an
-// error occurred during the [Flush], call [Error].
+// error occurred during the [Writer.Flush], call [Writer.Error].
 func (w *Writer) Flush() {
 	_ = w.w.Flush()
 }
 
-// Error reports any error that has occurred during a previous [Write] or
-// [Flush].
+// Error reports any error that has occurred during a previous [Writer.Write] or
+// [Writer.Flush].
 func (w *Writer) Error() error {
 	_, err := w.w.Write(nil)
 	return err
-}
-
-// WriteAll writes multiple LSV records to w using [Write] and then calls
-// [Flush], returning any error from the [Flush].
-func (w *Writer) WriteAll(values []string) error {
-	for _, value := range values {
-		err := w.Write(value)
-		if err != nil {
-			return err
-		}
-	}
-	return w.w.Flush()
-}
-
-type ValueComment struct {
-	value, comment string
-}
-
-// WriteAllWithComments writes multiple LSV records and comments to w using
-// [Write] and then calls [Flush], returning any error from the [Flush].
-func (w *Writer) WriteAllWithComments(values []ValueComment) error {
-	for _, value := range values {
-		err := w.WriteComment(value.value, value.comment)
-		if err != nil {
-			return err
-		}
-	}
-	return w.w.Flush()
 }
 
 // valueNeedsEscaping determines if the value needs to be escaped. Values with
@@ -245,10 +252,19 @@ func (w *Writer) valueNeedsEscaping(value string) bool {
 	return false
 }
 
-func firstRune(str string) rune {
-	return []rune(str)[0]
+// firstRune returns the first rune in the string. Returns 0 for an empty
+// string.
+func firstRune(s string) rune {
+	if s == "" {
+		return 0
+	}
+	return []rune(s)[0]
 }
 
-func lastRune(str string) rune {
-	return []rune(str)[len([]rune(str))-1]
+// lastRune returns the last rune in the string. Returns 0 for an empty string.
+func lastRune(s string) rune {
+	if s == "" {
+		return 0
+	}
+	return []rune(s)[len([]rune(s))-1]
 }

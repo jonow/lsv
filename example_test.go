@@ -28,7 +28,7 @@ apples
 	r := NewReader(strings.NewReader(in))
 
 	for {
-		record, err := r.Read()
+		value, err := r.Read()
 		if err == io.EOF {
 			break
 		}
@@ -36,7 +36,7 @@ apples
 			log.Fatal(err)
 		}
 
-		fmt.Println(record)
+		fmt.Println(value)
 	}
 	// Output:
 	// bananas
@@ -59,12 +59,12 @@ apples
 `
 	r := NewReader(strings.NewReader(in))
 
-	records, err := r.ReadAll()
+	values, err := r.ReadAll()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Print(records)
+	fmt.Print(values)
 	// Output:
 	// [bananas eggs milk apples   green   red]
 }
@@ -72,13 +72,13 @@ apples
 // This example shows how the [lsv.Writer] can read in a list of values, some
 // with extra whitespace, and return a valid LSV.
 func ExampleWriter() {
-	records := []string{"bananas", "eggs", "milk", "apples", "  green", "  red"}
+	values := []string{"bananas", "eggs", "milk", "apples", "  green", "  red"}
 
 	w := NewWriter(os.Stdout)
 
-	for _, record := range records {
-		if err := w.Write(record); err != nil {
-			log.Fatalln("error writing record to LSV:", err)
+	for _, value := range values {
+		if err := w.Write(value); err != nil {
+			log.Fatalln("error writing value to LSV:", err)
 		}
 	}
 
@@ -97,17 +97,17 @@ func ExampleWriter() {
 	// "  red"
 }
 
-// This example shows how the [Writer.WriteAll] can write all the values to LSV
-// at once.
+// This example shows how the [Writer.WriteAll] can write all the values to an
+// LSV at once.
 func ExampleWriter_WriteAll() {
-	records := []string{"bananas", "eggs", "milk", "apples", "  green", "  red"}
+	values := []string{"bananas", "eggs", "milk", "apples", "  green", "  red"}
 
 	w := NewWriter(os.Stdout)
 
-	_ = w.WriteAll(records) // calls Flush internally
+	_ = w.WriteAll(values) // calls Flush internally
 
 	if err := w.Error(); err != nil {
-		log.Fatalln("error writing csv:", err)
+		log.Fatalln("error writing LSV:", err)
 	}
 	// Output:
 	// bananas
@@ -116,4 +116,32 @@ func ExampleWriter_WriteAll() {
 	// apples
 	// "  green"
 	// "  red"
+}
+
+// This example shows how the [Writer.WriteAllWithComments] can write all the
+// values, including their comments, to an LSV at once.
+func ExampleWriter_WriteAllWithComments() {
+	values := []ValueComment{
+		{"bananas", ""},
+		{"eggs", "This is my comment"},
+		{"milk", ""},
+		{"apples", "A comment"},
+		{"  green", "Another comment"},
+		{"  red", "A third comment"},
+	}
+
+	w := NewWriter(os.Stdout)
+
+	_ = w.WriteAllWithComments(values) // calls Flush internally
+
+	if err := w.Error(); err != nil {
+		log.Fatalln("error writing LSV:", err)
+	}
+	// Output:
+	// bananas
+	// eggs	# This is my comment
+	// milk
+	// apples	# A comment
+	// "  green"	# Another comment
+	// "  red"	# A third comment
 }

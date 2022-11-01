@@ -74,7 +74,7 @@ func SplitParams(s string, p Parameters) ([]string, error) {
 					}
 				}
 
-				if p.isRaw(last, prev1, prev2) {
+				if p.isRaw(last, prev1) {
 					rawString.WriteString(line[:j])
 					values = append(values, rawString.String())
 					rawString.Reset()

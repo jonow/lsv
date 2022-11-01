@@ -306,12 +306,14 @@ var writeCommentTests = []writeCommentTest{{
 	Input:  []ValueComment{{`\\# Comment`, ""}},
 	Output: "\\\\\\# Comment\n",
 }, {
-	Name:   "SimpleWithComments",
-	Input:  []ValueComment{{"a", "Comment 1"}, {"b", "Comment 2"}, {"c", "Comment 3"}},
+	Name: "SimpleWithComments",
+	Input: []ValueComment{
+		{"a", "Comment 1"}, {"b", "Comment 2"}, {"c", "Comment 3"}},
 	Output: "a\t# Comment 1\nb\t# Comment 2\nc\t# Comment 3\n",
 }, {
-	Name:   "SimpleWithEscapedComments",
-	Input:  []ValueComment{{"a", "Comment 1"}, {"b\t# Comment 2", ""}, {"c", "Comment 3"}},
+	Name: "SimpleWithEscapedComments",
+	Input: []ValueComment{
+		{"a", "Comment 1"}, {"b\t# Comment 2", ""}, {"c", "Comment 3"}},
 	Output: "a\t# Comment 1\nb\t\\# Comment 2\nc\t# Comment 3\n",
 }, {
 	Name: "BlankLineWithComments",

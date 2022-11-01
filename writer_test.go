@@ -10,6 +10,7 @@ package lsv
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"io"
 	"reflect"
 	"strings"
@@ -156,153 +157,196 @@ e
 b
 `,
 }, {
+	Name:  "BadRaw_IsSpace",
+	Raw:   '\r',
+	Error: ErrInvalidParams,
+}, {
+	Name:  "BadRaw_InvalidRune",
+	Raw:   0xDFFF,
+	Error: ErrInvalidParams,
+}, {
+	Name:  "BadRaw_utf8RuneError",
+	Raw:   utf8.RuneError,
+	Error: ErrInvalidParams,
+}, {
+	Name:    "BadRaw_SameAsComment",
+	Comment: '#',
+	Raw:     '#',
+	Error:   ErrInvalidParams,
+}, {
+	Name:   "BadRaw_SameAsEscape",
+	Raw:    '\\',
+	Escape: '\\',
+	Error:  ErrInvalidParams,
+}, {
+	Name:   "BadEscape_IsSpace",
+	Escape: '\n',
+	Error:  ErrInvalidParams,
+}, {
+	Name:   "BadEscape_InvalidRune",
+	Escape: -1,
+	Error:  ErrInvalidParams,
+}, {
+	Name:   "BadEscape_utf8RuneError",
+	Escape: utf8.RuneError,
+	Error:  ErrInvalidParams,
+}, {
+	Name:    "BadEscape_SameAsComment",
+	Comment: '#',
+	Escape:  '#',
+	Error:   ErrInvalidParams,
+}, {
+	Name:   "BadEscape_SameAsRaw",
+	Raw:    '"',
+	Escape: '"',
+	Error:  ErrInvalidParams,
+}, {
+	Name:    "BadComment_IsSpace",
+	Comment: ' ',
+	Error:   ErrInvalidParams,
+}, {
+	Name:    "BadComment_InvalidRune",
+	Comment: 0xD800,
+	Error:   ErrInvalidParams,
+}, {
+	Name:    "BadComment_utf8RuneError",
+	Comment: utf8.RuneError,
+	Error:   ErrInvalidParams,
+}, {
+	Name:    "BadComment_SameAsRaw",
+	Comment: '"',
+	Error:   ErrInvalidParams,
+}, {
+	Name:    "BadComment_SameAsEscape",
+	Comment: '\\',
+	Error:   ErrInvalidParams,
+}, {
+	Name:  "BadRaw_IsSpace",
+	Raw:   '\r',
+	Error: ErrInvalidParams,
+}, {
+	Name:  "BadRaw_InvalidRune",
+	Raw:   0xDFFF,
+	Error: ErrInvalidParams,
+}, {
+	Name:  "BadRaw_utf8RuneError",
+	Raw:   utf8.RuneError,
+	Error: ErrInvalidParams,
+}, {
+	Name:    "BadRaw_SameAsComment",
+	Comment: '#',
+	Raw:     '#',
+	Error:   ErrInvalidParams,
+}, {
+	Name:   "BadRaw_SameAsEscape",
+	Raw:    '\\',
+	Escape: '\\',
+	Error:  ErrInvalidParams,
+}, {
+	Name:   "BadEscape_IsSpace",
+	Escape: '\n',
+	Error:  ErrInvalidParams,
+}, {
+	Name:   "BadEscape_InvalidRune",
+	Escape: -1,
+	Error:  ErrInvalidParams,
+}, {
+	Name:   "BadEscape_utf8RuneError",
+	Escape: utf8.RuneError,
+	Error:  ErrInvalidParams,
+}, {
+	Name:    "BadEscape_SameAsComment",
+	Comment: '#',
+	Escape:  '#',
+	Error:   ErrInvalidParams,
+}, {
+	Name:   "BadEscape_SameAsRaw",
+	Raw:    '"',
+	Escape: '"',
+	Error:  ErrInvalidParams,
+},
+}
+
+type writeCommentTest struct {
+	Name   string
+	Input  []ValueComment
+	Output string
+	Error  error
+
+	// These fields are copied into the Writer
+	Comment rune
+	Raw     rune
+	Escape  rune
+	UseCRLF bool
+	NoTrim  bool // Set to true to invert default
+}
+
+var writeCommentTests = []writeCommentTest{{
 	Name:   "SingeLineComment",
-	Input:  nil,
-	Output: "# Comment",
+	Input:  []ValueComment{{"", "Comment"}},
+	Output: "# Comment\n",
 }, {
 	Name:   "EscapedSingeLineComment",
-	Input:  []string{"# Comment"},
-	Output: "\\# Comment",
+	Input:  []ValueComment{{"# Comment", ""}},
+	Output: "\\# Comment\n",
 }, {
 	Name:   "InlineComment",
-	Input:  []string{"a"},
-	Output: "a # Comment",
+	Input:  []ValueComment{{"a", "Comment"}},
+	Output: "a\t# Comment\n",
 }, {
 	Name:   "EscapedInlineComment",
-	Input:  []string{`a # Comment`},
-	Output: `a \# Comment  `,
+	Input:  []ValueComment{{"a # Comment  ", ""}},
+	Output: "\"a # Comment  \"\n",
 }, {
 	Name:   "NonEscapedInlineComment",
-	Input:  []string{`a \# Comment`},
-	Output: `a \\# Comment  `,
+	Input:  []ValueComment{{`\# Comment`, ""}},
+	Output: "\\\\# Comment\n",
 }, {
 	Name:   "NonEscapedInlineComment2",
-	Input:  []string{`a \\# Comment`},
-	Output: `a \\\# Comment  `,
+	Input:  []ValueComment{{`\\# Comment`, ""}},
+	Output: "\\\\\\# Comment\n",
 }, {
 	Name:   "SimpleWithComments",
-	Input:  []string{"a", "b", "c"},
-	Output: "a # Comment 1\nb\t# Comment 2\nc\f# Comment 3\n",
+	Input:  []ValueComment{{"a", "Comment 1"}, {"b", "Comment 2"}, {"c", "Comment 3"}},
+	Output: "a\t# Comment 1\nb\t# Comment 2\nc\t# Comment 3\n",
 }, {
 	Name:   "SimpleWithEscapedComments",
-	Input:  []string{"a", "b\t# Comment 2", "c\f# Comment 3"},
-	Output: "a # Comment 1\nb\t\\# Comment 2\n\"c\f# Comment 3\"\n",
+	Input:  []ValueComment{{"a", "Comment 1"}, {"b\t# Comment 2", ""}, {"c", "Comment 3"}},
+	Output: "a\t# Comment 1\nb\t\\# Comment 2\nc\t# Comment 3\n",
 }, {
-	Name:   "NoEOLTestComment",
-	Input:  []string{"a", "b", "c"},
-	Output: "a\nb\nc # Comment",
+	Name: "BlankLineWithComments",
+	Input: []ValueComment{
+		{"a", ""}, {"b", ""}, {"c", ""}, {"", "Comment"}, {"d", ""},
+		{"e", ""}, {"f", ""}, {"", "Comment"}},
+	Output: "a\nb\nc\n# Comment\nd\ne\nf\n# Comment\n",
 }, {
-	Name:   "BlankLineWithComments",
-	Input:  []string{"a", "b", "c", "d", "e", "f"},
-	Output: "a\nb\nc\n# Comment\nd\ne\nf\n#Comment\n",
+	Name: "LeadingSpaceWithComment",
+	Input: []ValueComment{
+		{" a", "Comment"}, {"  b", "Comment"}, {"   c", "Comment"}},
+	Output: "\" a\"\t# Comment\n\"  b\"\t# Comment\n\"   c\"\t# Comment\n",
 }, {
-	Name:   "TrimSpaceWithComment",
-	Input:  []string{"a", "b", "c"},
-	Output: " a # Comment\n  b # Comment\n   c # Comment\n",
-}, {
-	Name:   "LeadingSpaceWithComment",
-	Input:  []string{" a", "  b", "   c"},
-	Output: " a# Comment\n  b# Comment\n   c# Comment\n",
-	NoTrim: true,
-}, {
-	Name:   "LeadingSpaceWithEscapedComment",
-	Input:  []string{" a", "  b# Comment", "   c"},
-	Output: " a# Comment\n  b\\# Comment\n   c# Comment\n",
+	Name: "LeadingSpaceWithEscapedComment",
+	Input: []ValueComment{
+		{" a", ""}, {"  b\\# Comment", ""}, {"   c", ""}},
+	Output: "\" a\"\n\"  b\\# Comment\"\n\"   c\"\n",
 	NoTrim: true,
 }, {
 	Name:   "BinaryBlobFieldWithComment",
-	Input:  []string{"x09A\xb4\x1c", "AKTau"},
-	Output: "x09\x41\xb4\x1c # Comment\nAKTau #comment",
+	Input:  []ValueComment{{"x09A\xb4\x1c", "Comment"}, {"AKTau", "comment"}},
+	Output: "x09\x41\xb4\x1c\t# Comment\nAKTau\t# comment\n",
 }, {
 	Name:   "QuotedFieldMultipleLFWithComment",
-	Input:  []string{"\n\n\n\n"},
-	Output: "\"\n\n\n\n\" # Comment",
+	Input:  []ValueComment{{"\n\n\n\n", "Comment"}},
+	Output: "\"\n\n\n\n\"\t# Comment\n",
 }, {
-	Name:   "MultipleCRLF",
-	Input:  nil,
-	Output: "\r\n\r\n\r\n\r\n # Comment",
-}, {
-	// The implementation may read each line in several chunks if it does not
-	// fit entirely in the read buffer, so we should test the code to handle
-	// that condition.
-	Name: "HugeLinesWithComments",
-	Input: []string{
-		strings.Repeat("@", 5000),
-		strings.Repeat("*", 5000) + " # Not a comment",
-	},
-	Output: strings.Repeat("# Comment\n", 10000) + "\n" +
-		strings.Repeat("@", 5000) + " # Comment \n" +
-		strings.Repeat("*", 5000) + " \\# Not a comment",
-}, {
-	Name:   "CRLFWithComments",
-	Input:  []string{"a", "b", "c", "d"},
-	Output: "a# Comment 1\nb # Comment 2\r\nc# Comment 3\nd\r\n",
-}, {
-	Name: "RawTestWithComments",
-	Input: []string{"field1", "aaa", "bb \\# Not a comment\nb", "ccc", "a,a",
-		`b"bb`, "ccc", "zzz", "yyy # Not a Comment", "xxx"},
-	Output: `field1
-"aaa" # Comment 1
-"bb \# Not a comment
-b" # Comment 2
-"ccc"
-"a,a"
-"b"bb" # Comment 3
-"ccc"
-zzz
-yyy \# Not a Comment
-xxx
-`,
-}, {
-	Name:   "EmptyValueWithComment",
-	Input:  []string{""},
-	Output: `"" # Comment`,
-}, {
-	Name:   "EmptyValueNewLineWithComment",
-	Input:  []string{""},
-	Output: "\"\"# Comment\n",
-}, {
-	Name:  "EmptyValuesWithComments",
-	Input: []string{"x", "y", "z", "x", "", "y", "", "z", ""},
-	Output: `x
-# Comment
-y
-
-z # Comment
-
-x
-""
-y
-  ""  # Comment
-z
-""`,
+	Name:   "EmptyValue",
+	Input:  []ValueComment{{"", ""}},
+	Output: "\"\"\n",
 }, {
 	Name:    "NonASCIIComment",
-	Input:   []string{"a", "b,c", "d,e"},
-	Output:  "a\nb,c\n \td,e\n€ comment\n",
+	Input:   []ValueComment{{"a", ""}, {"b,c", ""}, {"d,e", "comment"}},
+	Output:  "a\nb,c\nd,e\t€ comment\n",
 	Comment: '€',
-}, {
-	// λ and θ start with the same byte.
-	// This tests that the parser doesn't confuse such characters.
-	Name:    "NonASCIICommaConfusion",
-	Input:   []string{"ABθCD", "EFθGH"},
-	Output:  "\"ABθCD\" λ comment\nEFθGH λ comment",
-	Comment: 'λ',
-}, {
-	Name:    "NonASCIICommentConfusion",
-	Input:   []string{"λ", "λ", "λ"},
-	Output:  "λ\nλ\nθ\nλθa\n",
-	Comment: 'θ',
-}, {
-	Input:  []string{"a #A", "\\ \\#B", "#a"},
-	Name:   "EscapedCommentConfusion",
-	Output: "a \\#A\n\\ \\\\#B\n#\n\\#a\n",
-}, {
-	Name:    "NonASCIIEscapedCommentConfusion",
-	Input:   []string{"a θA", "λ λθB", "θa"},
-	Output:  "a λθA\nλ λλθB\nθ\nλθa\n",
-	Comment: 'θ',
-	Escape:  'λ',
 }, {
 	Name:    "BadComment_IsSpace",
 	Comment: ' ',
@@ -376,11 +420,9 @@ func TestNewWriter_Consistency(t *testing.T) {
 	buff := bytes.NewBufferString("")
 
 	expected := &Writer{
-		Comment:              defaultComment,
+		Parameters:           DefaultParameters(),
 		LeadingCommentSpace:  defaultLeadingCommentSpace,
 		TrailingCommentSpace: defaultTrailingCommentSpace,
-		Raw:                  defaultRaw,
-		Escape:               defaultEscape,
 		UseCRLF:              false,
 		w:                    bufio.NewWriter(buff),
 	}
@@ -393,9 +435,7 @@ func TestNewWriter_Consistency(t *testing.T) {
 	}
 }
 
-func TestWriter_Write(t *testing.T) {
-
-}
+// Tests that Writer.WriteAll returns the expected error or value for each test.
 func TestWriter_WriteAll(t *testing.T) {
 	newWriter := func(tt writeTest, buff io.Writer) *Writer {
 		w := NewWriter(buff)
@@ -438,106 +478,192 @@ func TestWriter_WriteAll(t *testing.T) {
 	}
 }
 
-func TestWriter_WriteAll2(t *testing.T) {
-	input := []string{
-		"test1",
-		"test2",
-		"test3 #not a comment",
-		"test4 \\#not a comment",
-		"#not a comment",
-		"\\#not a comment",
-		"\\\\#not a comment",
-		"Multi\nline",
-		"   test5   # this it not a comment  ",
-		"   test6    this it not a comment  ",
-		"   test7   \"\n# this it not a comment  ",
-		"\"",
-		"test8\"test8",
-		"test9\"",
-		"\"test10\"",
-		"\"test11\\\"\ntest11",
-		"\"test12\"\ntest12",
-		"\"test13\\\\\"\ntest13",
-		"test14\n\ntest14",
-		"",
-		"test15",
-	}
-	buff := bytes.NewBufferString("")
-	w := NewWriter(buff)
-	err := w.WriteAll(input)
-	if err != nil {
-		t.Errorf("WriteAll error: %+v", err)
-	}
+// Tests that Writer.Write returns the expected error or value for each test.
+func TestWriter_Write(t *testing.T) {
+	newWriter := func(tt writeTest, buff io.Writer) *Writer {
+		w := NewWriter(buff)
 
-	output := buff.String()
-
-	t.Logf("output =====\n%s\n=======", output)
-
-	r := NewReader(strings.NewReader(output))
-
-	values, err := r.ReadAll()
-	if err != nil {
-		t.Errorf("ReadAll error: %+v", err)
-	}
-
-	if !reflect.DeepEqual(input, values) {
-		t.Errorf("Output doesn't match input."+
-			"\nexpected: %q\nreceived: %q", input, values)
-	}
-
-	for i, val := range input {
-		if val != values[i] {
-			t.Errorf("Values #%d does not match.\nexpected: %q\nreceived: %q",
-				i, val, values[i])
+		if tt.Comment != 0 {
+			w.Comment = tt.Comment
 		}
+		if tt.Raw != 0 {
+			w.Raw = tt.Raw
+		}
+		if tt.Escape != 0 {
+			w.Escape = tt.Escape
+		}
+		w.UseCRLF = tt.UseCRLF
+		return w
+	}
+
+	for _, tt := range writeTests {
+		t.Run(tt.Name, func(t *testing.T) {
+			buff := bytes.NewBufferString("")
+			w := newWriter(tt, buff)
+
+			if tt.Input == nil {
+				tt.Input = []string{""}
+			}
+			for _, line := range tt.Input {
+				err := w.Write(line)
+				t.Log(err)
+				if tt.Error != nil {
+					if err != nil {
+						if !reflect.DeepEqual(err, tt.Error) {
+							t.Fatalf("Write error mismatch:"+
+								"\nexpected: %v (%#v)\nreceived: %v (%#v)",
+								tt.Error, tt.Error, err, err)
+						} else if line != "" {
+							t.Fatalf("Write unexpected output:"+
+								"\nexpected: nil\nreceived: %q", line)
+						} else {
+							return
+						}
+					}
+				} else {
+					if err != nil {
+						t.Fatalf("Unexpected Write error: %+v", err)
+					}
+				}
+			}
+
+			w.Flush()
+			out := buff.String()
+			if out != tt.Output {
+				t.Fatalf("Write unexpected output:"+
+					"\nexpected: %q\nreceived: %q", tt.Output, out)
+			}
+		})
 	}
 }
 
+// Tests that Writer.WriteAllWithComments returns the expected error or value
+// for each test.
 func TestWriter_WriteAllWithComments(t *testing.T) {
-	input := []ValueComment{
-		{"", "This is a line only comment"},
-		{"test1", "This is my comment"},
-		{"test2", ""},
-		{"test3 #not a comment", ""},
-		{"test4 \\#not a comment", ""},
-		{"#not a comment", ""},
-		{"\\#not a comment", "THIS IS A REAL COMMENT"},
-		{"\\\\#not a comment", ""},
-		{"Multi\nline", ""},
-		{"   test5   # this it not a comment  ", ""},
-		{"   test6    this it not a comment  ", ""},
-		{"   test7   \"\n# this it not a comment  ", ""},
-		{"\"", ""},
-		{"test8\"test8", ""},
-		{"test9\"", ""},
-		{"\"test10\"", ""},
-		{"\"test11\\\"\ntest11", ""},
-		{"\"test12\"\ntest12", ""},
-		{"\"test13\\\\\"\ntest13", ""},
-	}
-	buff := bytes.NewBufferString("")
-	w := NewWriter(buff)
-	err := w.WriteAllWithComments(input)
-	if err != nil {
-		t.Errorf("WriteAll error: %+v", err)
-	}
+	newWriter := func(tt writeCommentTest, buff io.Writer) *Writer {
+		w := NewWriter(buff)
 
-	output := buff.String()
-
-	t.Logf("output =====\n%s\n=======", output)
-
-	r := NewReader(strings.NewReader(output))
-
-	values, err := r.ReadAll()
-	if err != nil {
-		t.Errorf("ReadAll error: %+v", err)
-	}
-
-	for i, val := range input[1:] {
-		if val.Value != values[i] {
-			t.Errorf("Values #%d does not match.\nexpected: %q\nreceived: %q",
-				i, val.Value, values[i])
+		if tt.Comment != 0 {
+			w.Comment = tt.Comment
 		}
+		if tt.Raw != 0 {
+			w.Raw = tt.Raw
+		}
+		if tt.Escape != 0 {
+			w.Escape = tt.Escape
+		}
+		w.UseCRLF = tt.UseCRLF
+		return w
+	}
+
+	for _, tt := range writeCommentTests {
+		t.Run(tt.Name, func(t *testing.T) {
+			buff := bytes.NewBufferString("")
+			w := newWriter(tt, buff)
+			err := w.WriteAllWithComments(tt.Input)
+			if tt.Error != nil {
+				if !reflect.DeepEqual(err, tt.Error) {
+					t.Fatalf("WriteAll error mismatch:"+
+						"\nexpected: %v (%#v)\nreceived: %v (%#v)",
+						tt.Error, tt.Error, err, err)
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("Unexpected WriteAll error: %+v", err)
+				}
+				out := buff.String()
+				if out != tt.Output {
+					t.Fatalf("WriteAll unexpected output:"+
+						"\nexpected: %q\nreceived: %q", tt.Output, out)
+				}
+			}
+		})
+	}
+}
+
+// Tests that Writer.WriteComment returns the expected error or value for each
+// test.
+func TestWriter_WriteComment(t *testing.T) {
+	newWriter := func(tt writeCommentTest, buff io.Writer) *Writer {
+		w := NewWriter(buff)
+
+		if tt.Comment != 0 {
+			w.Comment = tt.Comment
+		}
+		if tt.Raw != 0 {
+			w.Raw = tt.Raw
+		}
+		if tt.Escape != 0 {
+			w.Escape = tt.Escape
+		}
+		w.UseCRLF = tt.UseCRLF
+		return w
+	}
+
+	for _, tt := range writeCommentTests {
+		t.Run(tt.Name, func(t *testing.T) {
+			buff := bytes.NewBufferString("")
+			w := newWriter(tt, buff)
+
+			if tt.Input == nil {
+				tt.Input = []ValueComment{{}}
+			}
+			for _, line := range tt.Input {
+				err := w.WriteComment(line.Value, line.Comment)
+				if tt.Error != nil {
+					if err != nil {
+						if !reflect.DeepEqual(err, tt.Error) {
+							t.Fatalf("Write error mismatch:"+
+								"\nexpected: %v (%#v)\nreceived: %v (%#v)",
+								tt.Error, tt.Error, err, err)
+						} else if line != (ValueComment{}) {
+							t.Fatalf("Write unexpected output:"+
+								"\nexpected: nil\nreceived: %q", line)
+						} else {
+							return
+						}
+					}
+				} else {
+					if err != nil {
+						t.Fatalf("Unexpected Write error: %+v", err)
+					}
+				}
+			}
+
+			w.Flush()
+			out := buff.String()
+			if out != tt.Output {
+				t.Fatalf("Write unexpected output:"+
+					"\nexpected: %q\nreceived: %q", tt.Output, out)
+			}
+		})
+	}
+}
+
+type errorWriter struct{}
+
+func (e errorWriter) Write([]byte) (int, error) {
+	return 0, errors.New("test")
+}
+
+// Tests that Writer.Error returns an error when the underlying writer returns
+// an error.
+func TestWriter_Error(t *testing.T) {
+	b := &bytes.Buffer{}
+	f := NewWriter(b)
+	_ = f.Write("abc")
+	f.Flush()
+	err := f.Error()
+	if err != nil {
+		t.Errorf("Unexpected error: %s\n", err)
+	}
+
+	f = NewWriter(errorWriter{})
+	_ = f.Write("abc")
+	f.Flush()
+	err = f.Error()
+	if err == nil {
+		t.Error("Error should not be nil")
 	}
 }
 

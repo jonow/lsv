@@ -75,5 +75,4 @@ results in the values
 To do:
  * Figure out why benchmarks are worse from read than splitter
  * Figure out why benchmarks are worse for lsv than csv
- * Add tests for writer
  * Add real file and large file testing and benchmarking
